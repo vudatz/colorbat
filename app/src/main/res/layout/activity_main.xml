@@ -614,7 +614,7 @@
                 android:id="@+id/tvFooter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="ColorBat v1.1.0"
+                android:text="Made with &#x2764;&#xFE0F; by @vudatz - ColorBat v1.1.0"
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary"
                 android:gravity="center"

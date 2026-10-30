@@ -141,7 +141,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             "1.1.0"
         }
-        tvFooter.text = "ColorBat v$versionName"
+        tvFooter.text = "Made with \u2764\uFE0F by @vudatz - ColorBat v$versionName"
     }
 
     private fun setupListeners() {
