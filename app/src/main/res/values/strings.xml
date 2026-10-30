@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">ColorBat</string>
+    <string name="title_overview">Tổng Quan Pin &amp; Năng Lượng</string>
+    <string name="title_health">Sức Khỏe &amp; Chu Kỳ Sạc</string>
+    <string name="title_hardware">Thông Số Phần Cứng &amp; Sysfs</string>
+    <string name="title_session">Phiên Theo Dõi Trực Tiếp</string>
+    <string name="btn_refresh">Làm Mới Ngay</string>
+    <string name="switch_autorefresh">Tự động cập nhật (1s)</string>
+</resources>
