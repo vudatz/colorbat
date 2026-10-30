@@ -36,6 +36,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/card_bg"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
                 android:layout_marginBottom="16dp">
@@ -97,7 +98,7 @@
                         <View
                             android:layout_width="1dp"
                             android:layout_height="48dp"
-                            android:background="#E0E0E0"
+                            android:background="@color/card_stroke"
                             android:layout_marginStart="20dp"
                             android:layout_marginEnd="20dp" />
 
@@ -217,6 +218,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/card_bg"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
                 android:layout_marginBottom="16dp">
@@ -238,7 +240,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Dữ liệu đọc trực tiếp từ PMIC và kernel sysfs"
+                        android:text="Dữ liệu đọc từ chip phần cứng &amp; PMIC"
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="2dp"
@@ -388,6 +390,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/card_bg"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
                 android:layout_marginBottom="16dp">
@@ -410,7 +413,7 @@
                         android:id="@+id/tvSysfsSource"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Nguồn: /sys/class/power_supply/battery"
+                        android:text="Nguồn: Đồng bộ phần cứng &amp; BatteryManager"
                         android:textSize="12sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="2dp"
@@ -442,8 +445,7 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
+                        android:orientation="horizontal">
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
@@ -460,27 +462,6 @@
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
-                    <!-- Điện áp OCV -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Điện áp mạch hở (OCV):"
-                            android:textSize="14sp"
-                            android:textColor="@color/text_primary" />
-                        <TextView
-                            android:id="@+id/tvVoltageOcv"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="4.505 V"
-                            android:textSize="14sp"
-                            android:textColor="@color/text_secondary" />
-                    </LinearLayout>
-
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -488,6 +469,7 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/card_bg"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
                 android:layout_marginBottom="24dp">

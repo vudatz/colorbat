@@ -38,7 +38,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSysfsSource: TextView
     private lateinit var tvTech: TextView
     private lateinit var tvChargeType: TextView
-    private lateinit var tvVoltageOcv: TextView
 
     private lateinit var switchAutoRefresh: SwitchMaterial
     private lateinit var btnRefresh: Button
@@ -71,7 +70,6 @@ class MainActivity : AppCompatActivity() {
         tvSysfsSource = findViewById(R.id.tvSysfsSource)
         tvTech = findViewById(R.id.tvTech)
         tvChargeType = findViewById(R.id.tvChargeType)
-        tvVoltageOcv = findViewById(R.id.tvVoltageOcv)
 
         switchAutoRefresh = findViewById(R.id.switchAutoRefresh)
         btnRefresh = findViewById(R.id.btnRefresh)
@@ -156,6 +154,5 @@ class MainActivity : AppCompatActivity() {
         }
         tvTech.text = "${info.technology} (Silicon-Carbon Glacier)"
         tvChargeType.text = if (info.chargeType.isNotEmpty()) info.chargeType else "Standard"
-        tvVoltageOcv.text = String.format(Locale.US, "%.3f V", info.voltageOcvMv / 1000.0)
     }
 }
