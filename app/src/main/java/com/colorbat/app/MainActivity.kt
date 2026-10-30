@@ -37,9 +37,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTemperature: TextView
 
     // Card 2: Session & Chart
-    private lateinit var switchChart: SwitchMaterial
+    private lateinit var tvSessionBadge: TextView
     private lateinit var tvSessionTimer: TextView
     private lateinit var btnToggleSession: Button
+    private lateinit var layoutChartContainer: View
     private lateinit var powerChartView: PowerChartView
     private var isSessionActive = false
     private var sessionSeconds = 0L
@@ -56,6 +57,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvReplacedDate: TextView
     private lateinit var tvTech: TextView
     private lateinit var tvChargeType: TextView
+
+    // Footer
+    private lateinit var tvFooter: TextView
 
     private val PREFS_NAME = "colorbat_prefs"
 
@@ -79,9 +83,10 @@ class MainActivity : AppCompatActivity() {
         tvVoltageV = findViewById(R.id.tvVoltageV)
         tvTemperature = findViewById(R.id.tvTemperature)
 
-        switchChart = findViewById(R.id.switchChart)
+        tvSessionBadge = findViewById(R.id.tvSessionBadge)
         tvSessionTimer = findViewById(R.id.tvSessionTimer)
         btnToggleSession = findViewById(R.id.btnToggleSession)
+        layoutChartContainer = findViewById(R.id.layoutChartContainer)
         powerChartView = findViewById(R.id.powerChartView)
 
         tvDeviceName = findViewById(R.id.tvDeviceName)
@@ -95,6 +100,14 @@ class MainActivity : AppCompatActivity() {
         tvReplacedDate = findViewById(R.id.tvReplacedDate)
         tvTech = findViewById(R.id.tvTech)
         tvChargeType = findViewById(R.id.tvChargeType)
+
+        tvFooter = findViewById(R.id.tvFooter)
+        val versionName = try {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+        tvFooter.text = "Made with ❤️ by @vudatz - ColorBat v$versionName"
     }
 
     private fun setupListeners() {
@@ -107,18 +120,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        switchChart.setOnCheckedChangeListener { _, isChecked ->
-            powerChartView.visibility = if (isChecked) View.VISIBLE else View.GONE
-        }
-
         btnToggleSession.setOnClickListener {
             isSessionActive = !isSessionActive
             if (isSessionActive) {
                 btnToggleSession.text = "Dừng đo"
                 btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.error))
+                layoutChartContainer.visibility = View.VISIBLE
+                tvSessionBadge.text = "ĐANG ĐO..."
+                tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.primary))
+                tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.primary_light))
             } else {
                 btnToggleSession.text = "Bắt đầu đo"
                 btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
+                tvSessionBadge.text = "SẴN SÀNG"
+                tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+                tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
+                layoutChartContainer.visibility = View.GONE
             }
         }
     }
