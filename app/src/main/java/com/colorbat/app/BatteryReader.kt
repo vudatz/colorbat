@@ -38,7 +38,7 @@ object BatteryReader {
             if (file.exists() && file.canRead()) {
                 file.readText().trim()
             } else null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             null
         }
     }
@@ -104,7 +104,7 @@ object BatteryReader {
         if (cycleCount == -1 && Build.VERSION.SDK_INT >= 34) {
             try {
                 cycleCount = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CYCLE_COUNT)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {}
         }
         if (cycleCount == -1) cycleCount = 0
 
