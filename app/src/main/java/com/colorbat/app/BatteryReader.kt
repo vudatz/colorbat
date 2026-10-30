@@ -101,9 +101,11 @@ object BatteryReader {
 
         // 7. Số chu kỳ sạc (Cycle Count)
         var cycleCount = readSysfsInt("cycle_count") ?: -1
-        if (cycleCount == -1 && Build.VERSION.SDK_INT >= 34) {
+        if (cycleCount == -1) {
             try {
-                cycleCount = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CYCLE_COUNT)
+                // Hằng số BATTERY_PROPERTY_CYCLE_COUNT là 7 trên Android 14+ (API 34+)
+                val propCycleCount = 7
+                cycleCount = batteryManager.getIntProperty(propCycleCount)
             } catch (e: Exception) {}
         }
         if (cycleCount == -1) cycleCount = 0
