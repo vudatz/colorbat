@@ -102,11 +102,19 @@ object BatteryReader {
         // 3. Dòng điện (Current mA)
         val sysfsCurrentNow = readInt(SYSFS_PATH, "current_now")
         var rawCurrent = sysfsCurrentNow ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-        if (rawCurrent == 0 && isCharging) {
+        
+        // Tránh lỗi Integer.MIN_VALUE (-2147483648) khi driver trả về trạng thái không đọc được
+        if (rawCurrent == Integer.MIN_VALUE) {
             val avg = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
-            if (avg != 0) rawCurrent = avg
+            rawCurrent = if (avg != Integer.MIN_VALUE) avg else 0
+        } else if (rawCurrent == 0 && isCharging) {
+            val avg = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
+            if (avg != Integer.MIN_VALUE && avg != 0) rawCurrent = avg
         }
+
         val currentMa = when {
+            rawCurrent == Integer.MIN_VALUE -> 0
+            abs(rawCurrent) > 1000000 -> 0
             abs(rawCurrent) > 10000 -> rawCurrent / 1000
             else -> rawCurrent
         }
@@ -167,7 +175,8 @@ object BatteryReader {
 
         // 9. Điện tích tích lũy hiện tại (Charge Counter)
         val sysfsCounter = readInt(OPLUS_PATH, "battery_rm") ?: readInt(SYSFS_PATH, "charge_counter")
-        val rawCounter = sysfsCounter ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+        var rawCounter = sysfsCounter ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+        if (rawCounter == Integer.MIN_VALUE) rawCounter = 0
         val chargeCounterMah = if (rawCounter > 10000) rawCounter / 1000 else rawCounter
 
         // 10. Sức khỏe pin SOH (%)

@@ -175,22 +175,24 @@ class MainActivity : AppCompatActivity() {
 
         val chargingColor = ContextCompat.getColor(this, R.color.charging)
         val dischargingColor = ContextCompat.getColor(this, R.color.discharging)
+        val absCurrent = abs(info.currentMa)
+        val safeWatts = if (info.powerWatts > 200.0 || info.powerWatts < 0.0) 0.0 else info.powerWatts
 
         if (info.isCharging) {
             val typeStr = if (info.chargeType.isNotEmpty()) " (${info.chargeType})" else ""
             tvChargingStatusBadge.text = "ĐANG SẠC$typeStr"
             tvChargingStatusBadge.setTextColor(chargingColor)
             tvLivePowerWatts.setTextColor(chargingColor)
-            tvLivePowerWatts.text = String.format(Locale.US, "+ %.2f W", info.powerWatts)
+            tvLivePowerWatts.text = String.format(Locale.US, "+ %.2f W", safeWatts)
             tvCurrentMa.setTextColor(chargingColor)
-            tvCurrentMa.text = String.format(Locale.US, "+ %d mA", abs(info.currentMa))
+            tvCurrentMa.text = String.format(Locale.US, "+ %d mA", absCurrent)
         } else {
             tvChargingStatusBadge.text = "ĐANG XẢ PIN"
             tvChargingStatusBadge.setTextColor(dischargingColor)
             tvLivePowerWatts.setTextColor(dischargingColor)
-            tvLivePowerWatts.text = String.format(Locale.US, "- %.2f W", info.powerWatts)
+            tvLivePowerWatts.text = String.format(Locale.US, "- %.2f W", safeWatts)
             tvCurrentMa.setTextColor(dischargingColor)
-            tvCurrentMa.text = String.format(Locale.US, "- %d mA", abs(info.currentMa))
+            tvCurrentMa.text = String.format(Locale.US, "- %d mA", absCurrent)
         }
 
         tvVoltageV.text = String.format(Locale.US, "%.3f V", info.voltageMv / 1000.0)
