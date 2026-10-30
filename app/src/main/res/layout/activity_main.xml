@@ -355,7 +355,38 @@
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="2dp"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- Trạng thái Shizuku PMIC Bridge -->
+                    <LinearLayout
+                        android:id="@+id/layoutShizukuStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/bg_shizuku_badge"
+                        android:padding="10dp"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:id="@+id/tvShizukuStatus"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Quyền Shizuku: Đang kiểm tra..."
+                            android:textSize="12sp"
+                            android:textColor="@color/text_primary" />
+
+                        <Button
+                            android:id="@+id/btnGrantShizuku"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:text="Cấp quyền"
+                            android:textSize="11sp"
+                            android:textAllCaps="false"
+                            style="@style/Widget.MaterialComponents.Button.TextButton"
+                            android:visibility="gone" />
+                    </LinearLayout>
 
                     <!-- Dòng 1: Tên thiết bị -->
                     <LinearLayout
@@ -583,7 +614,7 @@
                 android:id="@+id/tvFooter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Made with ❤️ by @vudatz - ColorBat v1.0.0"
+                android:text="ColorBat v1.1.0"
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary"
                 android:gravity="center"

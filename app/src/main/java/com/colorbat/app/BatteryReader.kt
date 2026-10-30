@@ -17,36 +17,20 @@ data class BatteryInfo(
     val voltageMv: Int,
     val powerWatts: Double,
     val temperatureC: Double,
-    val cycleCount: Int,
+    val cycleCount: Int, // -1 nếu không đọc được từ chip
     val designCapacityMah: Int,
     val typicalCapacityMah: Int,
     val chargeFullMah: Int,
     val chargeCounterMah: Int,
-    val healthPercent: Double,
+    val healthPercent: Double, // -1.0 nếu không đọc được từ chip
     val technology: String,
     val chargeType: String,
-    val isSysfsDirect: Boolean
+    val isSysfsDirect: Boolean,
+    val shizukuConnected: Boolean,
+    val pmicSource: String
 )
 
 object BatteryReader {
-
-    private const val SYSFS_PATH = "/sys/class/power_supply/battery"
-    private const val OPLUS_PATH = "/sys/devices/virtual/oplus_chg/battery"
-
-    private fun readString(path: String, fileName: String): String? {
-        return try {
-            val file = File(path, fileName)
-            if (file.exists() && file.canRead()) {
-                file.readText().trim()
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun readInt(path: String, fileName: String): Int? {
-        return readString(path, fileName)?.toIntOrNull()
-    }
 
     private fun readInternalFileInt(context: Context, fileName: String): Int? {
         return try {
@@ -73,20 +57,24 @@ object BatteryReader {
     fun getBatteryInfo(context: Context): BatteryInfo {
         val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val shizukuActive = ShizukuHelper.hasPermission()
 
-        // Tên thiết bị
-        val deviceName = if (Build.MODEL.contains("CPH2651")) {
-            "OPPO Find X8 (CPH2651)"
-        } else {
-            "${Build.MANUFACTURER.uppercase()} ${Build.MODEL}"
+        // 1. Tên thiết bị nhận diện tự động
+        val manufacturer = Build.MANUFACTURER.uppercase()
+        val model = Build.MODEL
+        val deviceName = when {
+            model.contains("CPH2651", ignoreCase = true) -> "OPPO Find X8 (CPH2651)"
+            model.contains("PGT-AN00", ignoreCase = true) || model.contains("PGT-N", ignoreCase = true) -> "HONOR Magic5 Pro ($model)"
+            model.startsWith(manufacturer, ignoreCase = true) -> model
+            else -> "$manufacturer $model"
         }
 
-        // 1. Phần trăm pin
-        val sysfsCapacity = readInt(SYSFS_PATH, "capacity")
+        // 2. Mức pin %
+        val sysfsCapacity = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/capacity")
         val level = sysfsCapacity ?: batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: 0
 
-        // 2. Trạng thái sạc
-        val sysfsStatus = readString(SYSFS_PATH, "status")
+        // 3. Trạng thái sạc
+        val sysfsStatus = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/status")
         val bmStatus = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         val isCharging = sysfsStatus?.equals("Charging", ignoreCase = true)
             ?: (bmStatus == BatteryManager.BATTERY_STATUS_CHARGING || bmStatus == BatteryManager.BATTERY_STATUS_FULL)
@@ -99,11 +87,10 @@ object BatteryReader {
             else -> "Unknown"
         }
 
-        // 3. Dòng điện (Current mA)
-        val sysfsCurrentNow = readInt(SYSFS_PATH, "current_now")
+        // 4. Dòng điện (Current mA) - Bảo vệ chống Integer.MIN_VALUE
+        val sysfsCurrentNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/current_now")
         var rawCurrent = sysfsCurrentNow ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
         
-        // Tránh lỗi Integer.MIN_VALUE (-2147483648) khi driver trả về trạng thái không đọc được
         if (rawCurrent == Integer.MIN_VALUE) {
             val avg = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
             rawCurrent = if (avg != Integer.MIN_VALUE) avg else 0
@@ -114,15 +101,15 @@ object BatteryReader {
 
         val currentMa = when {
             rawCurrent == Integer.MIN_VALUE -> 0
-            abs(rawCurrent) > 1000000 -> 0
-            abs(rawCurrent) > 10000 -> rawCurrent / 1000
+            abs(rawCurrent) > 1_000_000 -> 0
+            abs(rawCurrent) > 10_000 -> rawCurrent / 1000
             else -> rawCurrent
         }
 
-        // 4. Điện áp (Voltage mV)
-        val sysfsVoltageNow = readInt(SYSFS_PATH, "voltage_now")
+        // 5. Điện áp (Voltage mV)
+        val sysfsVoltageNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/voltage_now")
         val rawVoltage = when {
-            sysfsVoltageNow != null -> if (sysfsVoltageNow > 100000) sysfsVoltageNow / 1000 else sysfsVoltageNow
+            sysfsVoltageNow != null -> if (sysfsVoltageNow > 100_000) sysfsVoltageNow / 1000 else sysfsVoltageNow
             else -> batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 4300) ?: 4300
         }
         val voltageMv = when {
@@ -131,11 +118,11 @@ object BatteryReader {
             else -> 4300
         }
 
-        // 5. Công suất (Watts) = (V * |I|) / 1,000,000
+        // 6. Công suất sạc/xả tức thời (Watts)
         val powerWatts = (voltageMv.toDouble() * abs(currentMa).toDouble()) / 1_000_000.0
 
-        // 6. Nhiệt độ (°C)
-        val sysfsTemp = readInt(SYSFS_PATH, "temp")
+        // 7. Nhiệt độ (°C)
+        val sysfsTemp = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/temp")
         val temperatureC = when {
             sysfsTemp != null -> sysfsTemp.toDouble() / 10.0
             else -> {
@@ -144,49 +131,147 @@ object BatteryReader {
             }
         }
 
-        // 7. Số chu kỳ sạc (Cycle Count)
-        var cycleCount = readInt(OPLUS_PATH, "battery_cc") ?: readInt(SYSFS_PATH, "cycle_count") ?: -1
-        if (cycleCount == -1) {
-            cycleCount = readInternalFileInt(context, "cycle_count.txt") ?: -1
+        // 8. Đọc Chu kỳ sạc (Cycle Count) theo kiến trúc từng hãng (ĐỘNG 100%, KHÔNG HARDCODE)
+        val cyclePaths = when {
+            manufacturer.contains("HONOR") || manufacturer.contains("HUAWEI") -> listOf(
+                "/sys/class/hw_power/charger/charge_data/battery_cycle",
+                "/sys/class/hw_power/power_service/smart_battery/cycle_count",
+                "/sys/class/power_supply/battery/cycle_count"
+            )
+            manufacturer.contains("OPPO") || manufacturer.contains("REALME") || manufacturer.contains("ONEPLUS") -> listOf(
+                "/sys/devices/virtual/oplus_chg/battery/battery_cc",
+                "/sys/class/power_supply/battery/cycle_count"
+            )
+            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") -> listOf(
+                "/sys/class/power_supply/bms/cycle_count",
+                "/sys/class/power_supply/battery/cycle_count"
+            )
+            manufacturer.contains("SAMSUNG") -> listOf(
+                "/sys/class/power_supply/battery/battery_cycle",
+                "/sys/class/power_supply/battery/cycle_count"
+            )
+            else -> listOf(
+                "/sys/class/power_supply/battery/cycle_count",
+                "/sys/devices/virtual/oplus_chg/battery/battery_cc",
+                "/sys/class/hw_power/charger/charge_data/battery_cycle",
+                "/sys/class/power_supply/bms/cycle_count"
+            )
         }
-        if (cycleCount == -1) {
+
+        var detectedCycle = -1
+        var pmicNodeUsed = ""
+
+        for (path in cyclePaths) {
+            val value = ShizukuHelper.readSysfsInt(path)
+            if (value != null && value >= 0) {
+                detectedCycle = value
+                pmicNodeUsed = path
+                break
+            }
+        }
+
+        // Nếu sysfs chưa đọc được, thử Android 14+ API
+        if (detectedCycle == -1) {
             try {
-                cycleCount = batteryManager.getIntProperty(7)
+                val apiCycle = batteryManager.getIntProperty(7)
+                if (apiCycle > 0) {
+                    detectedCycle = apiCycle
+                    pmicNodeUsed = "Android API (Cycle Property 7)"
+                }
             } catch (e: Exception) {}
         }
-        if (cycleCount == -1) cycleCount = 780
 
-        // 8. Dung lượng thiết kế (Người dùng có thể tùy chỉnh trong Settings)
+        // Kiểm tra file lưu trữ cục bộ nếu có
+        if (detectedCycle == -1) {
+            detectedCycle = readInternalFileInt(context, "cycle_count.txt") ?: -1
+        }
+
+        // 9. Đọc Độ chai pin SOH (%) theo kiến trúc từng hãng (ĐỘNG 100%, KHÔNG HARDCODE)
+        val sohPaths = when {
+            manufacturer.contains("HONOR") || manufacturer.contains("HUAWEI") -> listOf(
+                "/sys/class/hw_power/power_service/smart_battery/soh",
+                "/sys/class/hw_power/charger/charge_data/soh"
+            )
+            manufacturer.contains("OPPO") || manufacturer.contains("REALME") || manufacturer.contains("ONEPLUS") -> listOf(
+                "/sys/devices/virtual/oplus_chg/battery/battery_soh"
+            )
+            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") -> listOf(
+                "/sys/class/power_supply/bms/soh"
+            )
+            else -> listOf(
+                "/sys/devices/virtual/oplus_chg/battery/battery_soh",
+                "/sys/class/hw_power/power_service/smart_battery/soh",
+                "/sys/class/power_supply/bms/soh"
+            )
+        }
+
+        var detectedSoh: Double? = null
+        for (path in sohPaths) {
+            val rawSoh = ShizukuHelper.readSysfsInt(path)
+            if (rawSoh != null && rawSoh in 1..100) {
+                // Trên OPPO/OnePlus: Kernel trả về SOH cell thật (vd 87%), UI ColorOS làm mịn +2% (89%)
+                detectedSoh = if (path.contains("oplus_chg")) {
+                    (rawSoh + 2.0).coerceAtMost(100.0)
+                } else {
+                    rawSoh.toDouble()
+                }
+                if (pmicNodeUsed.isEmpty()) pmicNodeUsed = path
+                break
+            }
+        }
+
+        val storedSoh = readInternalFileDouble(context, "soh.txt")
+        val healthPercent = storedSoh ?: detectedSoh ?: -1.0
+
+        // 10. Dung lượng thiết kế (Design Capacity)
         val customCap = readInternalFileInt(context, "custom_capacity.txt")
-        val sysfsDesign = readInt(SYSFS_PATH, "charge_full_design")
+        val sysfsDesign = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/design_capacity")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/hw_power/charger/charge_data/design_capacity")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_full_design")
+
         val designCapacityMah = customCap ?: when {
-            sysfsDesign != null && sysfsDesign > 10000 -> sysfsDesign / 1000
-            sysfsDesign != null -> sysfsDesign
-            else -> 5520
+            sysfsDesign != null && sysfsDesign > 10_000 -> sysfsDesign / 1000
+            sysfsDesign != null && sysfsDesign > 1000 -> sysfsDesign
+            model.contains("CPH2651") -> 5520
+            model.contains("PGT") -> 5100
+            else -> 5000
         }
-        val typicalCapacityMah = if (designCapacityMah == 5520) 5630 else designCapacityMah
 
-        val sysfsFull = readInt(OPLUS_PATH, "battery_fcc") ?: readInt(SYSFS_PATH, "charge_full")
+        val typicalCapacityMah = when {
+            designCapacityMah == 5520 -> 5630
+            designCapacityMah == 5100 -> 5450
+            else -> designCapacityMah
+        }
+
+        // 11. Dung lượng khi sạc đầy (FCC)
+        val sysfsFull = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/battery_fcc")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/hw_power/charger/charge_data/fcc")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_full")
+
         val chargeFullMah = when {
-            sysfsFull != null && sysfsFull > 10000 -> sysfsFull / 1000
-            sysfsFull != null -> sysfsFull
-            else -> (designCapacityMah * 0.89).toInt()
+            sysfsFull != null && sysfsFull > 10_000 -> sysfsFull / 1000
+            sysfsFull != null && sysfsFull > 1000 -> sysfsFull
+            healthPercent > 0.0 -> (designCapacityMah * (healthPercent / 100.0)).toInt()
+            else -> (designCapacityMah * 0.9).toInt()
         }
 
-        // 9. Điện tích tích lũy hiện tại (Charge Counter)
-        val sysfsCounter = readInt(OPLUS_PATH, "battery_rm") ?: readInt(SYSFS_PATH, "charge_counter")
+        // 12. Điện tích tích lũy (Charge Counter)
+        val sysfsCounter = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/battery_rm")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_counter")
         var rawCounter = sysfsCounter ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
         if (rawCounter == Integer.MIN_VALUE) rawCounter = 0
-        val chargeCounterMah = if (rawCounter > 10000) rawCounter / 1000 else rawCounter
+        val chargeCounterMah = if (rawCounter > 10_000) rawCounter / 1000 else rawCounter
 
-        // 10. Sức khỏe pin SOH (%)
-        // Đọc trực tiếp từ oplus_chg/battery_soh (87%) hoặc hiệu chỉnh theo thuật toán ColorOS Settings (89%)
-        val oplusSoh = readInt(OPLUS_PATH, "battery_soh")?.toDouble()
-        val storedSoh = readInternalFileDouble(context, "soh.txt")
-        val healthPercent = storedSoh ?: oplusSoh?.let { it + 2.0 } ?: 89.0
+        val tech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology") ?: "Li-ion"
+        val chargeType = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/charge_type")
+            ?: if (isCharging) "Fast" else "Standard"
 
-        val tech = readString(SYSFS_PATH, "technology") ?: "Li-ion"
-        val chargeType = readString(SYSFS_PATH, "charge_type") ?: if (isCharging) "Fast" else "Standard"
+        val pmicSource = when {
+            shizukuActive && pmicNodeUsed.isNotEmpty() -> "PMIC ($pmicNodeUsed)"
+            shizukuActive -> "Shizuku Shell (Đã kết nối)"
+            pmicNodeUsed.isNotEmpty() -> "Kernel Sysfs ($pmicNodeUsed)"
+            else -> "Chưa cấp quyền Shizuku"
+        }
 
         return BatteryInfo(
             deviceName = deviceName,
@@ -197,7 +282,7 @@ object BatteryReader {
             voltageMv = voltageMv,
             powerWatts = powerWatts,
             temperatureC = temperatureC,
-            cycleCount = cycleCount,
+            cycleCount = detectedCycle,
             designCapacityMah = designCapacityMah,
             typicalCapacityMah = typicalCapacityMah,
             chargeFullMah = chargeFullMah,
@@ -205,7 +290,9 @@ object BatteryReader {
             healthPercent = healthPercent,
             technology = tech,
             chargeType = chargeType,
-            isSysfsDirect = (sysfsCapacity != null || sysfsCurrentNow != null)
+            isSysfsDirect = (sysfsCapacity != null || sysfsCurrentNow != null || shizukuActive),
+            shizukuConnected = shizukuActive,
+            pmicSource = pmicSource
         )
     }
 }

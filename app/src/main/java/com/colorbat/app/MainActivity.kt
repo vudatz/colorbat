@@ -3,6 +3,7 @@ package com.colorbat.app
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -19,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import rikka.shizuku.Shizuku
 import java.io.File
 import java.util.Locale
 import kotlin.math.abs
@@ -46,6 +48,8 @@ class MainActivity : AppCompatActivity() {
     private var sessionSeconds = 0L
 
     // Card 3: Detailed Info
+    private lateinit var tvShizukuStatus: TextView
+    private lateinit var btnGrantShizuku: Button
     private lateinit var tvDeviceName: TextView
     private lateinit var tvHealthPercent: TextView
     private lateinit var tvCycleCount: TextView
@@ -62,6 +66,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvFooter: TextView
 
     private val PREFS_NAME = "colorbat_prefs"
+    private val SHIZUKU_REQUEST_CODE = 1001
+
+    private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        if (requestCode == SHIZUKU_REQUEST_CODE) {
+            if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Đã cấp quyền Shizuku thành công!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Quyền Shizuku bị từ chối", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,7 +84,24 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         setupListeners()
+        setupShizuku()
         startRealtimeMonitoring()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
+        } catch (e: Exception) {}
+    }
+
+    private fun setupShizuku() {
+        try {
+            Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
+            if (ShizukuHelper.isRunning() && !ShizukuHelper.hasPermission()) {
+                ShizukuHelper.requestPermission(SHIZUKU_REQUEST_CODE)
+            }
+        } catch (e: Exception) {}
     }
 
     private fun initViews() {
@@ -89,6 +121,8 @@ class MainActivity : AppCompatActivity() {
         layoutChartContainer = findViewById(R.id.layoutChartContainer)
         powerChartView = findViewById(R.id.powerChartView)
 
+        tvShizukuStatus = findViewById(R.id.tvShizukuStatus)
+        btnGrantShizuku = findViewById(R.id.btnGrantShizuku)
         tvDeviceName = findViewById(R.id.tvDeviceName)
         tvHealthPercent = findViewById(R.id.tvHealthPercent)
         tvCycleCount = findViewById(R.id.tvCycleCount)
@@ -105,9 +139,9 @@ class MainActivity : AppCompatActivity() {
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (e: Exception) {
-            "1.0.0"
+            "1.1.0"
         }
-        tvFooter.text = "Made with ❤️ by @vudatz - ColorBat v$versionName"
+        tvFooter.text = "ColorBat v$versionName"
     }
 
     private fun setupListeners() {
@@ -117,6 +151,14 @@ class MainActivity : AppCompatActivity() {
                 true
             } else {
                 false
+            }
+        }
+
+        btnGrantShizuku.setOnClickListener {
+            if (ShizukuHelper.isRunning()) {
+                ShizukuHelper.requestPermission(SHIZUKU_REQUEST_CODE)
+            } else {
+                Toast.makeText(this, "Hãy mở app Shizuku và bấm 'Khởi động' trước!", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -173,6 +215,21 @@ class MainActivity : AppCompatActivity() {
         tvBatteryPercent.text = "${info.level}%"
         pbBatteryLevel.progress = info.level
 
+        // Trạng thái cầu nối Shizuku
+        if (info.shizukuConnected) {
+            tvShizukuStatus.text = "✓ Quyền Shizuku: Đã kết nối\n${info.pmicSource}"
+            tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.success))
+            btnGrantShizuku.visibility = View.GONE
+        } else if (ShizukuHelper.isRunning()) {
+            tvShizukuStatus.text = "Shizuku đang chạy: Cần cấp quyền để đọc chip PMIC"
+            tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            btnGrantShizuku.visibility = View.VISIBLE
+        } else {
+            tvShizukuStatus.text = "Chưa kết nối Shizuku (Mở Shizuku để đọc phần cứng)"
+            tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            btnGrantShizuku.visibility = View.GONE
+        }
+
         val chargingColor = ContextCompat.getColor(this, R.color.charging)
         val dischargingColor = ContextCompat.getColor(this, R.color.discharging)
         val absCurrent = abs(info.currentMa)
@@ -198,21 +255,36 @@ class MainActivity : AppCompatActivity() {
         tvVoltageV.text = String.format(Locale.US, "%.3f V", info.voltageMv / 1000.0)
         tvTemperature.text = String.format(Locale.US, "%.1f °C", info.temperatureC)
 
-        // Sức khỏe pin SOH (89.0%)
-        tvHealthPercent.text = String.format(Locale.US, "%.1f %%", info.healthPercent)
-        tvCycleCount.text = "${info.cycleCount} lần"
+        // Sức khỏe pin SOH - Hiển thị trung thực, không bao giờ fake số
+        if (info.healthPercent >= 0.0) {
+            tvHealthPercent.text = String.format(Locale.US, "%.1f %%", info.healthPercent)
+            tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.success))
+        } else {
+            tvHealthPercent.text = "Cần quyền Shizuku"
+            tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        }
+
+        // Chu kỳ sạc Cycle Count - Hiển thị trung thực
+        if (info.cycleCount >= 0) {
+            tvCycleCount.text = "${info.cycleCount} lần"
+            tvCycleCount.setTextColor(ContextCompat.getColor(this, R.color.primary))
+        } else {
+            tvCycleCount.text = "Cần quyền Shizuku"
+            tvCycleCount.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        }
+
         tvDesignCapacity.text = String.format(Locale.US, "%,d mAh", info.designCapacityMah)
         tvTypicalCapacity.text = String.format(Locale.US, "%,d mAh", info.typicalCapacityMah)
         tvChargeCounter.text = String.format(Locale.US, "%,d mAh", info.chargeCounterMah)
-        tvTech.text = "${info.technology} (Silicon-Carbon Glacier)"
-        tvChargeType.text = if (info.chargeType.isNotEmpty()) info.chargeType else "Fast"
+        tvTech.text = info.technology
+        tvChargeType.text = if (info.chargeType.isNotEmpty()) info.chargeType else "Standard"
 
         // Đọc cài đặt chu kỳ cảnh báo & thay pin
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isAlertEnabled = prefs.getBoolean("cycle_alert_enabled", false)
         val cycleLimit = prefs.getInt("cycle_alert_limit", 1000)
 
-        if (isAlertEnabled && info.cycleCount >= cycleLimit) {
+        if (isAlertEnabled && info.cycleCount >= cycleLimit && info.cycleCount > 0) {
             tvCycleAlertWarning.visibility = View.VISIBLE
             tvCycleAlertWarning.text = "⚠️ Cảnh báo: Đã đạt ngưỡng chu kỳ sạc (${info.cycleCount}/$cycleLimit lần)!"
         } else {
