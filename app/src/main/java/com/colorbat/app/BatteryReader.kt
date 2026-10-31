@@ -72,8 +72,10 @@ object BatteryReader {
         // 1. Tên thiết bị nhận diện tự động
         val manufacturer = Build.MANUFACTURER.uppercase()
         val model = Build.MODEL
+        val device = Build.DEVICE
         val deviceName = when {
             model.contains("CPH2651", ignoreCase = true) -> "OPPO Find X8 (CPH2651)"
+            model.contains("2412DPC0AG", ignoreCase = true) || device.contains("rodin", ignoreCase = true) -> "POCO X7 Pro ($model)"
             model.contains("PGT-AN00", ignoreCase = true) || model.contains("PGT-N", ignoreCase = true) -> "HONOR Magic5 Pro ($model)"
             model.startsWith(manufacturer, ignoreCase = true) -> model
             else -> "$manufacturer $model"
@@ -282,6 +284,7 @@ object BatteryReader {
             sysfsDesign != null && sysfsDesign > 10_000 -> sysfsDesign / 1000
             sysfsDesign != null && sysfsDesign > 1000 -> sysfsDesign
             model.contains("CPH2651") -> 5520
+            model.contains("2412DPC0AG") || device.contains("rodin") -> 6000
             model.contains("PGT") -> 5100
             else -> 5000
         }
@@ -289,6 +292,7 @@ object BatteryReader {
         val typicalCapacityMah = when {
             designCapacityMah == 5520 -> 5630
             designCapacityMah == 5100 -> 5450
+            designCapacityMah == 6000 -> 6000
             else -> designCapacityMah
         }
 
@@ -312,6 +316,13 @@ object BatteryReader {
         var rawCounter = sysfsCounter ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
         if (rawCounter == Integer.MIN_VALUE) rawCounter = 0
         val chargeCounterMah = if (rawCounter > 10_000) rawCounter / 1000 else rawCounter
+
+        // Tính SOH động cho Xiaomi/POCO nếu chưa đọc được trực tiếp từ sysfs
+        if (detectedSoh == null && (manufacturer.contains("XIAOMI") || manufacturer.contains("POCO")) && level in 10..98 && chargeCounterMah > 1000) {
+            val estFull = (chargeCounterMah.toDouble() / (level / 100.0))
+            val estPct = (estFull / designCapacityMah.toDouble() * 100.0).coerceIn(60.0, 100.0)
+            detectedSoh = String.format(Locale.US, "%.1f", estPct).toDouble()
+        }
 
         // 13. Công nghệ pin
         val baseTech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology")
