@@ -16,7 +16,25 @@
         android:textColor="@color/text_primary"
         android:layout_marginBottom="16dp" />
 
-    <!-- 1. Cảnh báo chu kỳ sạc -->
+    <!-- 1. Cấu hình Pin 2 cell nối tiếp -->
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/switchDualCell"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Cấu hình Pin 2 cell (Dual-Cell)"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Dành cho máy sạc nhanh (OPPO Find X8, SuperVOOC, OnePlus...). Tự động nhân đôi (x2) điện áp khi cảm biến chỉ báo 1 cell (~4.4V) để tính đúng công suất sạc thật."
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="14dp" />
+
+    <!-- 2. Cảnh báo chu kỳ sạc -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/switchCycleAlert"
         android:layout_width="match_parent"
@@ -31,8 +49,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Giới hạn chu kỳ sạc (Lần)"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="16dp">
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="14dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etCycleLimit"
@@ -43,21 +61,21 @@
             android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- 2. Tùy chỉnh dung lượng pin để đo -->
+    <!-- 3. Tùy chỉnh dung lượng pin để đo -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Tùy chỉnh dung lượng danh định (hỗ trợ máy khác)"
+        android:text="Tùy chỉnh dung lượng thiết kế (hỗ trợ máy khác)"
         android:textSize="13sp"
         android:textColor="@color/text_secondary"
-        android:layout_marginBottom="6dp" />
+        android:layout_marginBottom="4dp" />
 
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Dung lượng pin thiết kế (mAh)"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="14dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etCustomCapacity"
@@ -68,7 +86,7 @@
             android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- 3. Ngày thay pin -->
+    <!-- 4. Ngày thay pin -->
     <com.google.android.material.checkbox.MaterialCheckBox
         android:id="@+id/cbBatteryReplaced"
         android:layout_width="match_parent"
@@ -83,8 +101,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Ngày thay pin (VD: 20/10/2026)"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="24dp">
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="20dp">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/etReplaceDate"

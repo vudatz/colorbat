@@ -31,7 +31,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Card 1: Công Suất & Trạng Thái Thời Gian Thực -->
+            <!-- Card 1: Tổng quan -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -110,38 +110,39 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="CÔNG SUẤT TỨC THỜI"
-                                android:textSize="11sp"
-                                android:textStyle="bold"
+                                android:text="Công suất tức thời"
+                                android:textSize="12sp"
                                 android:textColor="@color/text_secondary" />
 
                             <TextView
                                 android:id="@+id/tvLivePowerWatts"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="+ 2.51 W"
+                                android:text="+ 65.40 W"
                                 android:textSize="26sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/charging" />
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Progress bar mức pin -->
                     <ProgressBar
                         android:id="@+id/pbBatteryLevel"
                         style="?android:attr/progressBarStyleHorizontal"
                         android:layout_width="match_parent"
-                        android:layout_height="10dp"
-                        android:progress="95"
+                        android:layout_height="8dp"
                         android:max="100"
+                        android:progress="95"
                         android:progressTint="@color/primary"
+                        android:layout_marginTop="6dp"
                         android:layout_marginBottom="16dp" />
 
-                    <!-- Grid thông số V, A, Temp -->
+                    <!-- Grid 3 thông số: Dòng điện mA, Điện áp V, Nhiệt độ °C -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:weightSum="3">
+                        android:gravity="center_vertical">
 
                         <LinearLayout
                             android:layout_width="0dp"
@@ -158,10 +159,10 @@
                                 android:id="@+id/tvCurrentMa"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="+581 mA"
+                                android:text="+ 3.250 mA"
                                 android:textSize="16sp"
                                 android:textStyle="bold"
-                                android:textColor="@color/text_primary" />
+                                android:textColor="@color/charging" />
                         </LinearLayout>
 
                         <LinearLayout
@@ -172,7 +173,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Điện áp (U)"
+                                android:text="Điện áp (V)"
                                 android:textSize="12sp"
                                 android:textColor="@color/text_secondary" />
                             <TextView
@@ -260,13 +261,13 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Ấn bắt đầu đo để mở biểu đồ công suất thời gian thực"
+                        android:text="Hỗ trợ chạy ngầm liên tục khi tắt màn hình, tính công suất sạc trung bình chuẩn"
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="2dp"
                         android:layout_marginBottom="12dp" />
 
-                    <!-- Timer và Nút Bắt đầu đo -->
+                    <!-- Timer và Hàng nút điều khiển -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -291,40 +292,177 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="00:00:00"
-                                android:textSize="20sp"
+                                android:textSize="22sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
                         </LinearLayout>
 
-                        <Button
-                            android:id="@+id/btnToggleSession"
+                        <LinearLayout
                             android:layout_width="wrap_content"
-                            android:layout_height="42dp"
-                            android:text="Bắt đầu đo"
-                            android:textAllCaps="false"
-                            android:textSize="13sp"
-                            app:cornerRadius="10dp" />
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <!-- Nút Đặt lại (Hiện khi tạm dừng hoặc đã dừng) -->
+                            <Button
+                                android:id="@+id/btnResetSession"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Đặt lại"
+                                android:textAllCaps="false"
+                                android:textSize="12sp"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:visibility="gone"
+                                android:layout_marginEnd="6dp"
+                                app:cornerRadius="10dp" />
+
+                            <!-- Nút Dừng hẳn đo -->
+                            <Button
+                                android:id="@+id/btnStopSession"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Dừng đo"
+                                android:textAllCaps="false"
+                                android:textSize="12sp"
+                                android:backgroundTint="@color/error"
+                                android:textColor="@android:color/white"
+                                android:visibility="gone"
+                                android:layout_marginEnd="6dp"
+                                app:cornerRadius="10dp" />
+
+                            <!-- Nút Bắt đầu / Tạm dừng / Tiếp tục -->
+                            <Button
+                                android:id="@+id/btnToggleSession"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Bắt đầu đo"
+                                android:textAllCaps="false"
+                                android:textSize="12sp"
+                                app:cornerRadius="10dp" />
+                        </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Khung Biểu đồ Canvas (Mặc định GONE, khi ấn đo mới xổ ra!) -->
+                    <!-- Khung Biểu đồ Canvas & Bảng tóm tắt (Mặc định GONE, khi ấn đo mới xổ ra!) -->
                     <LinearLayout
                         android:id="@+id/layoutChartContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:visibility="gone"
-                        android:layout_marginTop="12dp">
+                        android:layout_marginTop="14dp">
+
+                        <!-- Bảng thống kê tóm tắt phiên sạc -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:background="@drawable/bg_shizuku_badge"
+                            android:padding="10dp"
+                            android:layout_marginBottom="12dp">
+
+                            <!-- Cột 1: Công suất TB -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Công suất TB"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/tvSessionAvgWatts"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="0.0 W"
+                                    android:textSize="14sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/secondary" />
+                            </LinearLayout>
+
+                            <!-- Cột 2: Đỉnh Peak -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Đỉnh (Max)"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/tvSessionPeakWatts"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="0.0 W"
+                                    android:textSize="14sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/primary" />
+                            </LinearLayout>
+
+                            <!-- Cột 3: Đã nạp mAh -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Đã nạp"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/tvSessionChargedMah"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="+0 mAh"
+                                    android:textSize="14sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/charging" />
+                            </LinearLayout>
+
+                            <!-- Cột 4: Mức pin -->
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical"
+                                android:gravity="center">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Mức pin"
+                                    android:textSize="11sp"
+                                    android:textColor="@color/text_secondary" />
+                                <TextView
+                                    android:id="@+id/tvSessionLevelDelta"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="--%"
+                                    android:textSize="14sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/text_primary" />
+                            </LinearLayout>
+                        </LinearLayout>
 
                         <com.colorbat.app.PowerChartView
                             android:id="@+id/powerChartView"
                             android:layout_width="match_parent"
-                            android:layout_height="160dp" />
+                            android:layout_height="170dp" />
                     </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Card 3: Thông Tin Chi Tiết (Đã gộp sức khỏe, chu kỳ và phần cứng) -->
+            <!-- Card 3: Thông Tin Chi Tiết -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -348,14 +486,13 @@
                         android:textColor="@color/text_primary" />
 
                     <TextView
-                        android:id="@+id/tvSysfsSource"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Dữ liệu đọc từ chip phần cứng &amp; PMIC"
+                        android:text="Sức khỏe, chu kỳ sạc và thông số phần cứng PMIC kernel"
                         android:textSize="13sp"
                         android:textColor="@color/text_secondary"
                         android:layout_marginTop="2dp"
-                        android:layout_marginBottom="8dp" />
+                        android:layout_marginBottom="12dp" />
 
                     <!-- Trạng thái Shizuku PMIC Bridge -->
                     <LinearLayout
@@ -408,10 +545,10 @@
                             android:text="OPPO Find X8 (CPH2651)"
                             android:textSize="14sp"
                             android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
+                            android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
-                    <!-- Dòng 2: Tình trạng sức khỏe pin SOH (89% chuẩn ColorOS) -->
+                    <!-- Dòng 2: Sức khỏe pin SOH -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -421,14 +558,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Tình trạng sức khỏe (SOH):"
+                            android:text="Sức khỏe pin (SOH):"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
                         <TextView
                             android:id="@+id/tvHealthPercent"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="89.0%"
+                            android:text="89.0 %"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/success" />
@@ -439,12 +576,12 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="12dp">
+                        android:layout_marginBottom="4dp">
                         <TextView
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Số chu kỳ sạc (Cycle Count):"
+                            android:text="Số chu kỳ sạc:"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
                         <TextView
@@ -457,19 +594,25 @@
                             android:textColor="@color/primary" />
                     </LinearLayout>
 
-                    <!-- Dòng Cảnh báo chu kỳ sạc (ẩn nếu chưa vượt mức) -->
+                    <!-- Cảnh báo chu kỳ sạc (nếu vượt ngưỡng cài đặt) -->
                     <TextView
                         android:id="@+id/tvCycleAlertWarning"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="⚠️ Đã đạt giới hạn chu kỳ sạc cảnh báo!"
-                        android:textColor="@color/error"
+                        android:text="⚠️ Cảnh báo: Pin đã vượt ngưỡng chu kỳ sạc thiết lập!"
                         android:textSize="12sp"
-                        android:textStyle="bold"
+                        android:textColor="@color/error"
                         android:visibility="gone"
-                        android:layout_marginBottom="10dp" />
+                        android:layout_marginBottom="12dp" />
 
-                    <!-- Dòng 4: Dung lượng định mức (Rated) -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/card_stroke"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Dòng Dung lượng thiết kế -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -479,7 +622,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Dung lượng định mức (Rated):"
+                            android:text="Dung lượng thiết kế:"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
                         <TextView
@@ -489,10 +632,10 @@
                             android:text="5.520 mAh"
                             android:textSize="14sp"
                             android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
+                            android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
-                    <!-- Dòng 5: Dung lượng tiêu chuẩn (Typical) -->
+                    <!-- Dòng Dung lượng danh định -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -502,7 +645,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Dung lượng tiêu chuẩn (Typical):"
+                            android:text="Dung lượng danh định (Typ):"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
                         <TextView
@@ -512,10 +655,10 @@
                             android:text="5.630 mAh"
                             android:textSize="14sp"
                             android:textStyle="bold"
-                            android:textColor="@color/text_primary" />
+                            android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
-                    <!-- Dòng 6: Điện tích tức thời (Charge Counter) -->
+                    <!-- Dòng Điện tích tích lũy -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -525,7 +668,7 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Điện tích tích lũy hiện tại:"
+                            android:text="Điện tích tích lũy:"
                             android:textSize="14sp"
                             android:textColor="@color/text_primary" />
                         <TextView
@@ -538,7 +681,7 @@
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
-                    <!-- Dòng Ngày thay pin (Tùy chọn: ẩn/hiện theo cài đặt) -->
+                    <!-- Dòng Ngày thay pin -->
                     <LinearLayout
                         android:id="@+id/rowBatteryReplaced"
                         android:layout_width="match_parent"
@@ -580,7 +723,7 @@
                             android:id="@+id/tvTech"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Li-ion (Glacier Si-C)"
+                            android:text="Li-ion"
                             android:textSize="14sp"
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
@@ -603,13 +746,14 @@
                             android:layout_height="wrap_content"
                             android:text="USB Fast Charging"
                             android:textSize="14sp"
+                            android:textStyle="bold"
                             android:textColor="@color/text_secondary" />
                     </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Footer -->
+            <!-- Footer: Made with ❤️ by @vudatz - ColorBat v1.1.0 -->
             <TextView
                 android:id="@+id/tvFooter"
                 android:layout_width="match_parent"

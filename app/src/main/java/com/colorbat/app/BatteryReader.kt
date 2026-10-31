@@ -27,7 +27,8 @@ data class BatteryInfo(
     val chargeType: String,
     val isSysfsDirect: Boolean,
     val shizukuConnected: Boolean,
-    val pmicSource: String
+    val pmicSource: String,
+    val isDualCell: Boolean
 )
 
 object BatteryReader {
@@ -54,10 +55,19 @@ object BatteryReader {
         }
     }
 
+    private fun saveInternalFile(context: Context, fileName: String, content: String) {
+        try {
+            File(context.filesDir, fileName).writeText(content)
+        } catch (e: Exception) {}
+    }
+
     fun getBatteryInfo(context: Context): BatteryInfo {
         val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val batteryIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val shizukuActive = ShizukuHelper.hasPermission()
+
+        val prefs = context.getSharedPreferences("colorbat_prefs", Context.MODE_PRIVATE)
+        val isDualCell = prefs.getBoolean("dual_cell_enabled", false)
 
         // 1. Tên thiết bị nhận diện tự động
         val manufacturer = Build.MANUFACTURER.uppercase()
@@ -90,7 +100,7 @@ object BatteryReader {
         // 4. Dòng điện (Current mA) - Bảo vệ chống Integer.MIN_VALUE
         val sysfsCurrentNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/current_now")
         var rawCurrent = sysfsCurrentNow ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
-        
+
         if (rawCurrent == Integer.MIN_VALUE) {
             val avg = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
             rawCurrent = if (avg != Integer.MIN_VALUE) avg else 0
@@ -106,30 +116,39 @@ object BatteryReader {
             else -> rawCurrent
         }
 
-        // 5. Điện áp (Voltage mV)
+        // 5. Điện áp (Voltage mV) - Hỗ trợ Pin 2 cell nối tiếp
         val sysfsVoltageNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/voltage_now")
-        val rawVoltage = when {
+        var rawVoltage = when {
             sysfsVoltageNow != null -> if (sysfsVoltageNow > 100_000) sysfsVoltageNow / 1000 else sysfsVoltageNow
             else -> batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 4300) ?: 4300
         }
-        val voltageMv = when {
-            rawVoltage in 1..10 -> rawVoltage * 1000 + 300
-            rawVoltage in 2000..5500 -> rawVoltage
-            else -> 4300
+
+        if (rawVoltage in 1..10) {
+            rawVoltage *= 1000
         }
 
-        // 6. Công suất sạc/xả tức thời (Watts)
-        val powerWatts = (voltageMv.toDouble() * abs(currentMa).toDouble()) / 1_000_000.0
+        // Nếu người dùng bật tùy chọn Pin 2 cell:
+        // Cảm biến 1 cell báo khoảng 3.5V - 4.5V (3500 - 4500 mV).
+        // Khi bật 2 cell nối tiếp, điện áp x2 (~8.8V) để hiển thị và tính đúng công suất
+        val voltageMv = if (isDualCell && rawVoltage in 2500..5500) {
+            rawVoltage * 2
+        } else {
+            rawVoltage
+        }
+
+        // 6. Tính công suất tức thời (W = V * A)
+        val absCurrent = abs(currentMa)
+        val powerWatts = if (absCurrent == 0 || voltageMv <= 0) {
+            0.0
+        } else {
+            val calc = (absCurrent.toDouble() * voltageMv.toDouble()) / 1_000_000.0
+            if (calc.isNaN() || calc < 0.0 || calc > 300.0) 0.0 else calc
+        }
 
         // 7. Nhiệt độ (°C)
         val sysfsTemp = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/temp")
-        val temperatureC = when {
-            sysfsTemp != null -> sysfsTemp.toDouble() / 10.0
-            else -> {
-                val tempExtra = batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 350) ?: 350
-                tempExtra.toDouble() / 10.0
-            }
-        }
+        val rawTemp = sysfsTemp ?: batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 320) ?: 320
+        val temperatureC = if (rawTemp > 100) rawTemp / 10.0 else rawTemp.toDouble()
 
         // 8. Đọc Chu kỳ sạc (Cycle Count) theo kiến trúc từng hãng (ĐỘNG 100%, KHÔNG HARDCODE)
         val cyclePaths = when {
@@ -142,7 +161,7 @@ object BatteryReader {
                 "/sys/devices/virtual/oplus_chg/battery/battery_cc",
                 "/sys/class/power_supply/battery/cycle_count"
             )
-            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") -> listOf(
+            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") || manufacturer.contains("POCO") -> listOf(
                 "/sys/class/power_supply/bms/cycle_count",
                 "/sys/class/power_supply/battery/cycle_count"
             )
@@ -181,12 +200,14 @@ object BatteryReader {
             } catch (e: Exception) {}
         }
 
-        // Kiểm tra file lưu trữ cục bộ nếu có
-        if (detectedCycle == -1) {
+        // Tự động lưu cache khi phát hiện được từ phần cứng/ADB
+        if (detectedCycle > 0) {
+            saveInternalFile(context, "cycle_count.txt", detectedCycle.toString())
+        } else {
             detectedCycle = readInternalFileInt(context, "cycle_count.txt") ?: -1
         }
 
-        // 9. Đọc Độ chai pin SOH (%) theo kiến trúc từng hãng (ĐỘNG 100%, KHÔNG HARDCODE)
+        // 9. Đọc Độ chai pin SOH (%) theo kiến trúc từng hãng
         val sohPaths = when {
             manufacturer.contains("HONOR") || manufacturer.contains("HUAWEI") -> listOf(
                 "/sys/class/hw_power/power_service/smart_battery/soh",
@@ -195,7 +216,7 @@ object BatteryReader {
             manufacturer.contains("OPPO") || manufacturer.contains("REALME") || manufacturer.contains("ONEPLUS") -> listOf(
                 "/sys/devices/virtual/oplus_chg/battery/battery_soh"
             )
-            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") -> listOf(
+            manufacturer.contains("XIAOMI") || manufacturer.contains("REDMI") || manufacturer.contains("POCO") -> listOf(
                 "/sys/class/power_supply/bms/soh"
             )
             else -> listOf(
@@ -218,6 +239,10 @@ object BatteryReader {
                 if (pmicNodeUsed.isEmpty()) pmicNodeUsed = path
                 break
             }
+        }
+
+        if (detectedSoh != null && detectedSoh > 0.0) {
+            saveInternalFile(context, "soh.txt", detectedSoh.toString())
         }
 
         val storedSoh = readInternalFileDouble(context, "soh.txt")
@@ -262,9 +287,17 @@ object BatteryReader {
         if (rawCounter == Integer.MIN_VALUE) rawCounter = 0
         val chargeCounterMah = if (rawCounter > 10_000) rawCounter / 1000 else rawCounter
 
-        val tech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology") ?: "Li-ion"
-        val chargeType = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/charge_type")
-            ?: if (isCharging) "Fast" else "Standard"
+        // 13. Công nghệ pin
+        val baseTech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology") ?: "Li-ion"
+        val tech = if (isDualCell) "$baseTech (2-Cell Series)" else baseTech
+
+        // 14. Nhận diện chuẩn xác Giao thức sạc theo từng hãng
+        val chargeType = detectFastChargingProtocol(
+            isCharging = isCharging,
+            powerWatts = powerWatts,
+            currentMa = currentMa,
+            manufacturer = manufacturer
+        )
 
         val pmicSource = when {
             shizukuActive && pmicNodeUsed.isNotEmpty() -> "PMIC ($pmicNodeUsed)"
@@ -292,7 +325,83 @@ object BatteryReader {
             chargeType = chargeType,
             isSysfsDirect = (sysfsCapacity != null || sysfsCurrentNow != null || shizukuActive),
             shizukuConnected = shizukuActive,
-            pmicSource = pmicSource
+            pmicSource = pmicSource,
+            isDualCell = isDualCell
         )
+    }
+
+    private fun detectFastChargingProtocol(
+        isCharging: Boolean,
+        powerWatts: Double,
+        currentMa: Int,
+        manufacturer: String
+    ): String {
+        if (!isCharging) return "Đang xả pin"
+
+        val mfr = manufacturer.uppercase()
+
+        // Đọc các node sysfs nhận diện giao thức
+        val oplusVoocState = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/vooc_chg_state")
+        val oplusFastType = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/fast_chg_type")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/fast_chg_type")
+        val usbTypecMode = ShizukuHelper.readSysfs("/sys/class/power_supply/usb/typec_mode") ?: ""
+        val chargeTypeSys = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/charge_type") ?: ""
+        val hwChargerType = ShizukuHelper.readSysfs("/sys/class/hw_power/charger/charge_data/charger_type") ?: ""
+        val pdAllowed = ShizukuHelper.readSysfsInt("/sys/class/power_supply/usb/pd_allowed")
+
+        // 1. Giao thức UFCS (chuẩn sạc chung thế hệ mới)
+        if (usbTypecMode.contains("UFCS", ignoreCase = true) || chargeTypeSys.contains("UFCS", ignoreCase = true)) {
+            return "UFCS Fast Charge"
+        }
+
+        // 2. OPPO / REALME / ONEPLUS (SuperVOOC / VOOC)
+        if (mfr.contains("OPPO") || mfr.contains("REALME") || mfr.contains("ONEPLUS")) {
+            val isVooc = (oplusVoocState != null && oplusVoocState > 0) ||
+                         (oplusFastType != null && oplusFastType > 0) ||
+                         powerWatts >= 20.0
+            if (isVooc) {
+                return when {
+                    powerWatts >= 70.0 || oplusFastType == 3 -> "SuperVOOC 2.0 (Ultra Fast)"
+                    powerWatts >= 30.0 || oplusFastType == 2 -> "SuperVOOC (Fast)"
+                    powerWatts >= 18.0 || oplusFastType == 1 -> "VOOC Flash Charge"
+                    else -> "SuperVOOC"
+                }
+            }
+        }
+
+        // 3. HONOR / HUAWEI (SuperCharge / QuickCharge)
+        if (mfr.contains("HONOR") || mfr.contains("HUAWEI")) {
+            if (hwChargerType.contains("SuperCharge", ignoreCase = true) || powerWatts >= 35.0) {
+                return "Honor SuperCharge (SCP)"
+            } else if (hwChargerType.contains("Quick", ignoreCase = true) || powerWatts >= 18.0) {
+                return "Huawei QuickCharge (FCP)"
+            }
+        }
+
+        // 4. XIAOMI / REDMI (HyperCharge / Mi Turbo Charge)
+        if (mfr.contains("XIAOMI") || mfr.contains("REDMI") || mfr.contains("POCO")) {
+            if (powerWatts >= 55.0) return "Xiaomi HyperCharge"
+            if (powerWatts >= 25.0) return "Mi Turbo Charge"
+        }
+
+        // 5. SAMSUNG (Super Fast Charging)
+        if (mfr.contains("SAMSUNG")) {
+            if (powerWatts >= 25.0) return "Samsung Super Fast Charging"
+            if (powerWatts >= 14.0) return "Samsung Fast Charging (AFC)"
+        }
+
+        // 6. USB-PD / PPS
+        if (pdAllowed == 1 || usbTypecMode.contains("PD", ignoreCase = true) || usbTypecMode.contains("Power Delivery", ignoreCase = true)) {
+            return if (powerWatts >= 25.0) "USB-PD PPS (Fast)" else "USB Power Delivery (PD)"
+        }
+
+        // 7. Phân loại theo công suất thực tế
+        return when {
+            powerWatts < 5.0 || abs(currentMa) < 900 -> "Sạc chậm (Slow 5V-1A)"
+            powerWatts in 5.0..10.5 -> "Sạc chuẩn (Standard 5V-2A)"
+            powerWatts in 10.5..18.0 -> "Sạc nhanh (Quick Charge)"
+            powerWatts > 18.0 -> if (mfr.contains("OPPO")) "SuperVOOC" else "Sạc nhanh cao tốc"
+            else -> "Tiêu chuẩn"
+        }
     }
 }

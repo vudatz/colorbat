@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">ColorBat</string>
-    <string name="title_overview">Tổng Quan Pin &amp; Năng Lượng</string>
+    <string name="title_overview">Tổng quan</string>
     <string name="title_health">Sức Khỏe &amp; Chu Kỳ Sạc</string>
     <string name="title_hardware">Thông Số Phần Cứng &amp; Sysfs</string>
     <string name="title_session">Phiên Theo Dõi Trực Tiếp</string>
