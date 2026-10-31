@@ -1,5 +1,6 @@
 package com.colorbat.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.BroadcastReceiver
@@ -16,10 +17,12 @@ import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.Dispatchers
@@ -80,13 +83,19 @@ class MainActivity : AppCompatActivity() {
 
     private val PREFS_NAME = "colorbat_prefs"
     private val SHIZUKU_REQUEST_CODE = 1001
+    private val NOTIF_PERMISSION_REQUEST_CODE = 1002
+
+    private fun showBottomNotice(message: String, isLong: Boolean = false) {
+        val duration = if (isLong) Snackbar.LENGTH_LONG else Snackbar.LENGTH_SHORT
+        Snackbar.make(findViewById(android.R.id.content), message, duration).show()
+    }
 
     private val shizukuPermissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
         if (requestCode == SHIZUKU_REQUEST_CODE) {
             if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Đã cấp quyền Shizuku thành công!", Toast.LENGTH_SHORT).show()
+                showBottomNotice("Đã cấp quyền Shizuku thành công!")
             } else {
-                Toast.makeText(this, "Quyền Shizuku bị từ chối", Toast.LENGTH_SHORT).show()
+                showBottomNotice("Quyền Shizuku bị từ chối")
             }
         }
     }
@@ -111,9 +120,84 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         setupShizuku()
         registerUsbReceiver()
+        checkNotificationAndLiveAlertPermissions()
         checkFirstLaunchAlert()
         syncSessionUi()
         startRealtimeMonitoring()
+    }
+
+    private fun checkNotificationAndLiveAlertPermissions() {
+        // 1. Tự động hiện popup xin quyền thông báo hệ thống (Android 13+ / ColorOS 13-17)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIF_PERMISSION_REQUEST_CODE
+                )
+                return
+            }
+        }
+
+        // 2. Tự động kiểm tra nhắc bật Cảnh báo trực tiếp (ColorOS Fluid Cloud Capsule)
+        checkLiveAlertPrompt()
+    }
+
+    private fun checkLiveAlertPrompt() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val liveAlertPrompted = prefs.getBoolean("live_alert_prompt_v2", false)
+        if (!liveAlertPrompted) {
+            val isOppo = Build.MANUFACTURER.contains("OPPO", ignoreCase = true) ||
+                         Build.MANUFACTURER.contains("REALME", ignoreCase = true) ||
+                         Build.MANUFACTURER.contains("ONEPLUS", ignoreCase = true)
+            if (isOppo) {
+                AlertDialog.Builder(this)
+                    .setTitle("Cảnh Báo Trực Tiếp (Fluid Cloud)")
+                    .setMessage("Để viên thuốc sạc Dynamic Island hiển thị tự động trên thanh trạng thái ColorOS, hãy đảm bảo mục 'Cảnh báo trực tiếp' trong cài đặt thông báo đã được BẬT.")
+                    .setPositiveButton("Mở cài đặt") { _, _ ->
+                        prefs.edit().putBoolean("live_alert_prompt_v2", true).apply()
+                        openNotificationSettings()
+                    }
+                    .setNegativeButton("Đã hiểu") { _, _ ->
+                        prefs.edit().putBoolean("live_alert_prompt_v2", true).apply()
+                    }
+                    .show()
+            }
+        }
+    }
+
+    private fun openNotificationSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    putExtra(Settings.EXTRA_CHANNEL_ID, "colorbat_live_alert_channel")
+                }
+                startActivity(intent)
+            } else {
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                }
+                startActivity(intent)
+            }
+        } catch (e: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+            } catch (ex: Exception) {}
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NOTIF_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                showBottomNotice("Đã cấp quyền thông báo thành công!")
+                checkLiveAlertPrompt()
+            }
+        }
     }
 
     override fun onResume() {
@@ -150,21 +234,21 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(usbReceiver, filter)
     }
 
-    // 3. Alert thông báo mở app chuẩn xác theo yêu cầu
+    // 3. Alert thông báo mở app (Đã loại bỏ hoàn toàn biểu tượng tia sét)
     private fun checkFirstLaunchAlert() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alertShown = prefs.getBoolean("alert_dual_cell_v3", false)
+        val alertShown = prefs.getBoolean("alert_dual_cell_v4", false)
 
         if (!alertShown) {
             AlertDialog.Builder(this)
-                .setTitle("⚡ Lưu ý")
-                .setMessage("⚡ Lưu ý: Một số thiết bị hiện nay sử dụng pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell để tối ưu hóa việc sạc nhanh . Kiểm tra kĩ thông tin cell pin của bạn rồi vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
+                .setTitle("Lưu ý")
+                .setMessage("Một số thiết bị hiện nay sử dụng pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell để tối ưu hóa việc sạc nhanh . Kiểm tra kĩ thông tin cell pin của bạn rồi vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
                 .setPositiveButton("Vào Cài đặt") { _, _ ->
-                    prefs.edit().putBoolean("alert_dual_cell_v3", true).apply()
+                    prefs.edit().putBoolean("alert_dual_cell_v4", true).apply()
                     showSettingsDialog()
                 }
                 .setNegativeButton("Đã hiểu") { _, _ ->
-                    prefs.edit().putBoolean("alert_dual_cell_v3", true).apply()
+                    prefs.edit().putBoolean("alert_dual_cell_v4", true).apply()
                 }
                 .setCancelable(false)
                 .show()
@@ -228,6 +312,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Cập nhật màu icon trên topAppBar theo chế độ sáng/tối
+        val iconColor = ContextCompat.getColor(this, R.color.top_bar_icon)
+        topAppBar.menu.findItem(R.id.action_facebook)?.icon?.setTint(iconColor)
+        topAppBar.menu.findItem(R.id.action_settings)?.icon?.setTint(iconColor)
+
         topAppBar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_facebook -> {
@@ -235,7 +324,7 @@ class MainActivity : AppCompatActivity() {
                         val fbIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://facebook.com/vudatz"))
                         startActivity(fbIntent)
                     } catch (e: Exception) {
-                        Toast.makeText(this, "Không thể mở Facebook", Toast.LENGTH_SHORT).show()
+                        showBottomNotice("Không thể mở Facebook")
                     }
                     true
                 }
@@ -251,7 +340,7 @@ class MainActivity : AppCompatActivity() {
             if (ShizukuHelper.isRunning()) {
                 ShizukuHelper.requestPermission(SHIZUKU_REQUEST_CODE)
             } else {
-                Toast.makeText(this, "Hãy mở app Shizuku và bấm 'Khởi động' trước!", Toast.LENGTH_LONG).show()
+                showBottomNotice("Hãy mở app Shizuku và bấm 'Khởi động' trước!", true)
             }
         }
 
@@ -276,13 +365,13 @@ class MainActivity : AppCompatActivity() {
             syncSessionUi()
         }
 
-        // Đặt lại phiên đo trực tiếp trong app (không bị văng app)
+        // Đặt lại phiên đo trực tiếp trong app (hiển thị thông báo sạch không kèm icon app)
         btnResetSession.setOnClickListener {
             startSessionService(ChargingMonitorService.ACTION_STOP)
             ChargingSessionManager.reset()
             powerChartView.clearData()
             syncSessionUi()
-            Toast.makeText(this, "Đã đặt lại phiên đo!", Toast.LENGTH_SHORT).show()
+            showBottomNotice("Đã đặt lại phiên đo!")
         }
     }
 
@@ -516,7 +605,7 @@ class MainActivity : AppCompatActivity() {
                 File(filesDir, "custom_capacity.txt").writeText(customCap.toString())
             } catch (e: Exception) {}
 
-            Toast.makeText(this, "Đã lưu cài đặt thành công!", Toast.LENGTH_SHORT).show()
+            showBottomNotice("Đã lưu cài đặt thành công!")
             dialog.dismiss()
 
             // Làm mới ngay

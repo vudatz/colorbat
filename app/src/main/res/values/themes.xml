@@ -3,7 +3,8 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
         <item name="colorSecondary">@color/secondary</item>
-        <item name="android:statusBarColor">@color/primary_variant</item>
+        <item name="android:statusBarColor">@color/top_bar_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowBackground">@color/background</item>
     </style>
 </resources>

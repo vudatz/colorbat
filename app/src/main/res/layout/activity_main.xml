@@ -8,15 +8,17 @@
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/top_bar_bg"
+        app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/topAppBar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
+            android:background="@color/top_bar_bg"
             app:title="@string/app_name"
-            app:titleTextColor="@android:color/white"
+            app:titleTextColor="@color/top_bar_text"
             app:menu="@menu/top_menu" />
     </com.google.android.material.appbar.AppBarLayout>
 

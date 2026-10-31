@@ -13,4 +13,7 @@
     <color name="charging">#00E676</color>
     <color name="discharging">#FFA726</color>
     <color name="card_stroke">#2C2C2C</color>
+    <color name="top_bar_bg">#000000</color>
+    <color name="top_bar_text">#FFFFFF</color>
+    <color name="top_bar_icon">#FFFFFF</color>
 </resources>
