@@ -4,12 +4,16 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import java.util.Locale
+import kotlin.math.max
 
 class ChargingMonitorService : Service() {
 
@@ -20,6 +24,13 @@ class ChargingMonitorService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var job: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    // Bitmap 1x1 trong suốt để triệt tiêu hoàn toàn icon app mặc định trên capsule ColorOS Fluid Cloud
+    private val transparentBitmap by lazy {
+        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.TRANSPARENT)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -50,11 +61,11 @@ class ChargingMonitorService : Service() {
                 startMonitoring()
             }
             ACTION_PAUSE -> {
-                ChargingSessionManager.isPaused = true
+                ChargingSessionManager.pause()
                 updateNotification()
             }
             ACTION_RESUME -> {
-                ChargingSessionManager.isPaused = false
+                ChargingSessionManager.resume()
                 updateNotification()
             }
             ACTION_STOP -> {
@@ -75,34 +86,27 @@ class ChargingMonitorService : Service() {
     private fun startMonitoring() {
         if (job != null && job?.isActive == true) return
 
-        ChargingSessionManager.isRunning = true
-        ChargingSessionManager.isPaused = false
+        ChargingSessionManager.start()
 
         job = scope.launch {
-            var counter = 0
             while (isActive && ChargingSessionManager.isRunning) {
+                val tickStart = SystemClock.elapsedRealtime()
+
                 if (!ChargingSessionManager.isPaused) {
-                    ChargingSessionManager.sessionSeconds++
-
                     val info = BatteryReader.getBatteryInfo(applicationContext)
-                    ChargingSessionManager.addSample(
-                        info.powerWatts.toFloat(),
-                        info.currentMa,
-                        info.level
-                    )
-
-                    counter++
-                    if (counter % 2 == 0) {
-                        updateNotification()
-                    }
+                    ChargingSessionManager.addSample(info)
+                    updateNotification()
                 }
-                delay(1000)
+
+                // Tự động bù trừ thời gian đọc I/O thực tế để mỗi nhịp đếm chuẩn xác 1000ms, không bị lệch giây
+                val elapsed = SystemClock.elapsedRealtime() - tickStart
+                val sleepMs = max(100L, 1000L - elapsed)
+                delay(sleepMs)
             }
         }
     }
 
     private fun stopMonitoring() {
-        ChargingSessionManager.isRunning = false
         job?.cancel()
         job = null
     }
@@ -119,52 +123,55 @@ class ChargingMonitorService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
         )
 
-        val hours = ChargingSessionManager.sessionSeconds / 3600
-        val mins = (ChargingSessionManager.sessionSeconds % 3600) / 60
-        val secs = ChargingSessionManager.sessionSeconds % 60
+        // Tính toán đồng hồ đếm giờ chuẩn từng giây theo phần cứng
+        val totalSecs = ChargingSessionManager.sessionSeconds
+        val hours = totalSecs / 3600
+        val mins = (totalSecs % 3600) / 60
+        val secs = totalSecs % 60
         val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
 
+        val livePower = ChargingSessionManager.powerPoints.lastOrNull() ?: 0f
         val avgPower = ChargingSessionManager.getAveragePower()
-        val statusText = if (ChargingSessionManager.isPaused) "Tạm dừng" else "Đang sạc"
-        val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
+        val maxPower = ChargingSessionManager.peakPower
 
-        val title = if (isLiveAlert) {
-            String.format(Locale.US, "⚡ Sạc live: %.1f W • %s", avgPower, timeStr)
-        } else {
-            "ColorBat - Phiên đo sạc"
-        }
-
-        val content = String.format(
+        // Định dạng thống nhất theo yêu cầu:
+        // (đồng hồ đếm giờ) | (Công suất hiện tại) | TB: (CS trung bình) | Max: (CS tối đa)
+        val unifiedLine = String.format(
             Locale.US,
-            "[%s] TG: %s | TB: %.1f W | Đỉnh: %.1f W | +%.0f mAh",
-            statusText,
+            "%s | %.1f W | TB: %.1f W | Max: %.1f W",
             timeStr,
+            livePower,
             avgPower,
-            ChargingSessionManager.peakPower,
-            ChargingSessionManager.totalMahCharged
+            maxPower
         )
 
+        val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
         val builder = NotificationCompat.Builder(this, channelId)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
             .setContentIntent(pendingIntent)
 
         if (isLiveAlert) {
-            // Chuẩn Promoted Ongoing ColorOS Fluid Cloud theo FluidCapsule API
+            // Chuẩn Promoted Ongoing ColorOS Fluid Cloud
+            // Bỏ icon app: dùng icon trong suốt + largeIcon rỗng để không bị đè icon app mặc định
+            builder.setSmallIcon(R.drawable.ic_transparent)
+            builder.setLargeIcon(transparentBitmap)
+
+            // Thay đổi toàn bộ dòng tiêu đề thành định dạng duy nhất
+            builder.setContentTitle(unifiedLine)
+            builder.setContentText(null)
+            builder.setSubText(null) // Loại bỏ chữ Fluid Cloud theo Mục 1
+
             builder.setCategory(NotificationCompat.CATEGORY_STATUS)
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
-            builder.setSubText("Fluid Cloud")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             }
 
             // Gắn AOSP Live Notification & ColorOS promoted ongoing tag
-            val shortText = String.format(Locale.US, "⚡ %.1fW", avgPower)
+            val shortText = String.format(Locale.US, "%.1fW", livePower)
             val extras = android.os.Bundle().apply {
                 putBoolean("android.requestPromotedOngoing", true)
                 putCharSequence("android.shortCriticalText", shortText)
@@ -176,9 +183,10 @@ class ChargingMonitorService : Service() {
             val currentLvl = if (ChargingSessionManager.currentBatteryLevel > 0) ChargingSessionManager.currentBatteryLevel else 100
             builder.setProgress(100, currentLvl, false)
 
-            // Nút bấm tương tác nhanh trên Capsule
+            // Sửa icon nút bấm: Khi Tạm dừng -> Hiện icon Tiếp tục (Play), Khi Tiếp tục -> Hiện icon Tạm dừng (Pause)
             val toggleAction = if (ChargingSessionManager.isPaused) ACTION_RESUME else ACTION_PAUSE
             val toggleLabel = if (ChargingSessionManager.isPaused) "Tiếp tục" else "Tạm dừng"
+            val toggleIcon = if (ChargingSessionManager.isPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
             val toggleIntent = Intent(this, ChargingMonitorService::class.java).apply {
                 action = toggleAction
             }
@@ -186,8 +194,11 @@ class ChargingMonitorService : Service() {
                 this, 101, toggleIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
             )
-            builder.addAction(android.R.drawable.ic_media_pause, toggleLabel, togglePending)
+            builder.addAction(toggleIcon, toggleLabel, togglePending)
         } else {
+            builder.setSmallIcon(R.mipmap.ic_launcher)
+            builder.setContentTitle("ColorBat - Phiên đo sạc")
+            builder.setContentText(unifiedLine)
             builder.setPriority(NotificationCompat.PRIORITY_LOW)
         }
 
@@ -205,7 +216,6 @@ class ChargingMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            // Kênh Cảnh báo trực tiếp (ColorOS Fluid Cloud Capsule)
             val liveAlertChannel = NotificationChannel(
                 CHANNEL_LIVE_ALERT,
                 "Cảnh Báo Trực Tiếp (Fluid Cloud)",
@@ -218,7 +228,6 @@ class ChargingMonitorService : Service() {
             }
             notificationManager.createNotificationChannel(liveAlertChannel)
 
-            // Kênh Tiêu chuẩn
             val normalChannel = NotificationChannel(
                 CHANNEL_NORMAL,
                 "Phiên Đo Sạc Tiêu Chuẩn",

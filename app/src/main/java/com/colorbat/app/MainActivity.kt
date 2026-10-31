@@ -116,6 +116,21 @@ class MainActivity : AppCompatActivity() {
         startRealtimeMonitoring()
     }
 
+    override fun onResume() {
+        super.onResume()
+        ChargingSessionManager.onUpdateListener = {
+            runOnUiThread {
+                syncSessionUi()
+            }
+        }
+        syncSessionUi()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ChargingSessionManager.onUpdateListener = null
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         try {
@@ -316,11 +331,14 @@ class MainActivity : AppCompatActivity() {
         val avgWatts = ChargingSessionManager.getAveragePower()
         tvSessionAvgWatts.text = String.format(Locale.US, "%.1f W", avgWatts)
         tvSessionPeakWatts.text = String.format(Locale.US, "%.1f W", ChargingSessionManager.peakPower)
-        tvSessionChargedMah.text = String.format(Locale.US, "+%.0f mAh", ChargingSessionManager.totalMahCharged)
+        
+        val chargedMah = ChargingSessionManager.totalMahCharged
+        tvSessionChargedMah.text = String.format(Locale.US, "%+d mAh", chargedMah.toInt())
 
         if (ChargingSessionManager.startBatteryLevel > 0 && ChargingSessionManager.currentBatteryLevel > 0) {
             val delta = ChargingSessionManager.currentBatteryLevel - ChargingSessionManager.startBatteryLevel
-            tvSessionLevelDelta.text = "${ChargingSessionManager.startBatteryLevel}% → ${ChargingSessionManager.currentBatteryLevel}% (+${delta}%)"
+            val sign = if (delta >= 0) "+" else ""
+            tvSessionLevelDelta.text = "${ChargingSessionManager.startBatteryLevel}% → ${ChargingSessionManager.currentBatteryLevel}% ($sign${delta}%)"
         } else {
             tvSessionLevelDelta.text = "--%"
         }
