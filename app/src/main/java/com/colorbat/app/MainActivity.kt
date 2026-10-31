@@ -124,6 +124,9 @@ class MainActivity : AppCompatActivity() {
         checkFirstLaunchAlert()
         syncSessionUi()
         startRealtimeMonitoring()
+
+        // Tự động kiểm tra bản cập nhật OTA trong nền khi mở ứng dụng
+        OtaUpdateManager.checkUpdate(this, isManual = false)
     }
 
     private fun checkNotificationAndLiveAlertPermissions() {
@@ -315,6 +318,7 @@ class MainActivity : AppCompatActivity() {
         // Cập nhật màu icon trên topAppBar theo chế độ sáng/tối
         val iconColor = ContextCompat.getColor(this, R.color.top_bar_icon)
         topAppBar.menu.findItem(R.id.action_facebook)?.icon?.setTint(iconColor)
+        topAppBar.menu.findItem(R.id.action_update)?.icon?.setTint(iconColor)
         topAppBar.menu.findItem(R.id.action_settings)?.icon?.setTint(iconColor)
 
         topAppBar.setOnMenuItemClickListener { menuItem ->
@@ -326,6 +330,10 @@ class MainActivity : AppCompatActivity() {
                     } catch (e: Exception) {
                         showBottomNotice("Không thể mở Facebook")
                     }
+                    true
+                }
+                R.id.action_update -> {
+                    OtaUpdateManager.checkUpdate(this, isManual = true)
                     true
                 }
                 R.id.action_settings -> {
@@ -567,6 +575,12 @@ class MainActivity : AppCompatActivity() {
         val etReplaceDate = dialog.findViewById<TextInputEditText>(R.id.etReplaceDate)
         val btnSave = dialog.findViewById<Button>(R.id.btnSaveSettings)
         val btnCancel = dialog.findViewById<Button>(R.id.btnCancelSettings)
+        val btnCheckUpdate = dialog.findViewById<com.google.android.material.button.MaterialButton>(R.id.btnCheckUpdate)
+
+        btnCheckUpdate?.setOnClickListener {
+            dialog.dismiss()
+            OtaUpdateManager.checkUpdate(this, isManual = true)
+        }
 
         // Load existing values
         switchDualCell.isChecked = prefs.getBoolean("dual_cell_enabled", false)

@@ -7,6 +7,11 @@
         android:title="Facebook @vudatz"
         app:showAsAction="always" />
     <item
+        android:id="@+id/action_update"
+        android:icon="@drawable/ic_update"
+        android:title="Cập nhật OTA"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/action_settings"
         android:icon="@drawable/ic_settings"
         android:title="Cài đặt"

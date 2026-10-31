@@ -107,6 +107,18 @@
             android:textColor="@color/text_primary" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- 5. Kiểm tra cập nhật OTA -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCheckUpdate"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kiểm Tra Cập Nhật OTA"
+        android:textColor="@color/primary"
+        app:strokeColor="@color/primary"
+        app:cornerRadius="8dp"
+        android:layout_marginBottom="16dp" />
+
     <!-- Action buttons -->
     <LinearLayout
         android:layout_width="match_parent"
