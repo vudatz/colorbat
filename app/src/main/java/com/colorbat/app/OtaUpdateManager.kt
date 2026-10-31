@@ -111,7 +111,8 @@ object OtaUpdateManager {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val apkFile = File(context.cacheDir, "ColorBat_Update.apk")
+                val downloadDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
+                val apkFile = File(downloadDir, "ColorBat_Update.apk")
                 if (apkFile.exists()) apkFile.delete()
 
                 val url = URL(updateInfo.apkUrl)
@@ -172,8 +173,10 @@ object OtaUpdateManager {
         // Cách 1: Tự động cài đặt im lặng qua Shizuku nếu đã cấp quyền
         if (ShizukuHelper.hasPermission()) {
             try {
-                val result = ShizukuHelper.execRootOrShizuku("pm install -r ${apkFile.absolutePath}")
+                apkFile.setReadable(true, false)
+                val result = ShizukuHelper.execRootOrShizuku("pm install -r \"${apkFile.absolutePath}\"")
                 if (result.contains("Success", ignoreCase = true)) {
+                    apkFile.delete()
                     showNotice(context, "Cập nhật thành công qua Shizuku!")
                     return
                 }

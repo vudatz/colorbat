@@ -45,7 +45,7 @@ object ShizukuHelper {
                 String::class.java
             )
             method.isAccessible = true
-            val process = method.invoke(null, arrayOf("sh", "-c", command), null, null) as? Process ?: return null
+            val process = method.invoke(null, arrayOf("sh", "-c", "$command 2>&1"), null, null) as? Process ?: return null
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val output = reader.readText().trim()
             process.waitFor()
@@ -53,6 +53,10 @@ object ShizukuHelper {
         } catch (e: Exception) {
             null
         }
+    }
+
+    fun execRootOrShizuku(command: String): String {
+        return execCommand(command) ?: ""
     }
 
     fun readSysfs(path: String): String? {
