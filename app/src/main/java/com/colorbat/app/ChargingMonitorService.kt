@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Build
 import android.os.IBinder
@@ -25,11 +26,9 @@ class ChargingMonitorService : Service() {
     private var job: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // Bitmap 1x1 trong suốt để triệt tiêu hoàn toàn icon app mặc định trên capsule ColorOS Fluid Cloud
-    private val transparentBitmap by lazy {
-        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply {
-            eraseColor(Color.TRANSPARENT)
-        }
+    // Icon nhận diện thương hiệu ColorBat mới cho Live Alert / Fluid Cloud
+    private val capsuleIconBitmap by lazy {
+        BitmapFactory.decodeResource(resources, R.drawable.ic_capsule_icon)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -131,24 +130,22 @@ class ChargingMonitorService : Service() {
         val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
 
         val livePower = ChargingSessionManager.powerPoints.lastOrNull() ?: 0f
-        val avgPower = ChargingSessionManager.getAveragePower()
         val maxPower = ChargingSessionManager.peakPower
 
         // Định dạng thống nhất theo yêu cầu:
-        // (đồng hồ đếm giờ) | (Công suất hiện tại) | TB: (CS trung bình) | Max: (CS tối đa)
-        val unifiedLine = String.format(
+        // (đồng hồ đếm giờ) | (Công suất hiện tại) | Max: (CS tối đa)
+        val statLine = String.format(
             Locale.US,
-            "%s | %.1f W | TB: %.1f W | Max: %.1f W",
+            "%s | %.1f W | Max: %.1f W",
             timeStr,
             livePower,
-            avgPower,
             maxPower
         )
 
         val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("ColorBat")
-            .setContentText(unifiedLine)
+            .setContentText(statLine)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
@@ -156,9 +153,9 @@ class ChargingMonitorService : Service() {
 
         if (isLiveAlert) {
             // Chuẩn Promoted Ongoing ColorOS Fluid Cloud
-            // Bỏ icon app: dùng icon trong suốt + largeIcon rỗng để không bị đè icon app mặc định
-            builder.setSmallIcon(R.drawable.ic_transparent)
-            builder.setLargeIcon(transparentBitmap)
+            // Đưa icon thương hiệu mới lên Live Alert Capsule
+            builder.setSmallIcon(R.drawable.ic_capsule_icon)
+            builder.setLargeIcon(capsuleIconBitmap)
             builder.setSubText(null) // Loại bỏ chữ Fluid Cloud
 
             builder.setCategory(NotificationCompat.CATEGORY_STATUS)

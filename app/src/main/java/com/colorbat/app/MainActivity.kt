@@ -229,11 +229,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         topAppBar.setOnMenuItemClickListener { menuItem ->
-            if (menuItem.itemId == R.id.action_settings) {
-                showSettingsDialog()
-                true
-            } else {
-                false
+            when (menuItem.itemId) {
+                R.id.action_facebook -> {
+                    try {
+                        val fbIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://facebook.com/vudatz"))
+                        startActivity(fbIntent)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Không thể mở Facebook", Toast.LENGTH_SHORT).show()
+                    }
+                    true
+                }
+                R.id.action_settings -> {
+                    showSettingsDialog()
+                    true
+                }
+                else -> false
             }
         }
 
