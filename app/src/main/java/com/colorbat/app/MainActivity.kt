@@ -352,9 +352,9 @@ class MainActivity : AppCompatActivity() {
         tvBatteryPercent.text = "${info.level}%"
         pbBatteryLevel.progress = info.level
 
-        // Trạng thái cầu nối Shizuku
-        if (info.shizukuConnected) {
-            tvShizukuStatus.text = "✓ Quyền Shizuku: Đã kết nối\n${info.pmicSource}"
+        // Trạng thái cầu nối Shizuku / ADB
+        if (info.shizukuConnected || info.cycleCount > 0) {
+            tvShizukuStatus.text = "✓ Quyền phần cứng: Đã kết nối\n${info.pmicSource}"
             tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.success))
             btnGrantShizuku.visibility = View.GONE
         } else if (ShizukuHelper.isRunning()) {
@@ -362,7 +362,7 @@ class MainActivity : AppCompatActivity() {
             tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.primary))
             btnGrantShizuku.visibility = View.VISIBLE
         } else {
-            tvShizukuStatus.text = "Chưa kết nối Shizuku (Mở Shizuku để đọc phần cứng)"
+            tvShizukuStatus.text = "Chưa cấp quyền (Mở Shizuku hoặc cắm ADB để đọc phần cứng)"
             tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             btnGrantShizuku.visibility = View.GONE
         }

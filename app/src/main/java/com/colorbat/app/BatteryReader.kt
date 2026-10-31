@@ -303,7 +303,8 @@ object BatteryReader {
             shizukuActive && pmicNodeUsed.isNotEmpty() -> "PMIC ($pmicNodeUsed)"
             shizukuActive -> "Shizuku Shell (Đã kết nối)"
             pmicNodeUsed.isNotEmpty() -> "Kernel Sysfs ($pmicNodeUsed)"
-            else -> "Chưa cấp quyền Shizuku"
+            detectedCycle > 0 -> "ADB Debugging Bridge (PMIC Active)"
+            else -> "Chưa cấp quyền Shizuku / ADB"
         }
 
         return BatteryInfo(
