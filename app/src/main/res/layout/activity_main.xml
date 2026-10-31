@@ -228,11 +228,13 @@
                     android:padding="16dp"
                     android:animateLayoutChanges="true">
 
+                    <!-- Header & Badge -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="14dp">
 
                         <TextView
                             android:layout_width="0dp"
@@ -258,24 +260,12 @@
                             android:paddingBottom="3dp" />
                     </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="12dp" />
-
-                    <!-- Timer thời gian sạc -->
+                    <!-- Hàng: Đồng hồ đếm giờ và Nút bấm thẳng hàng (Đã bỏ chữ Thời gian sạc, không có nút dừng) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:gravity="center_vertical"
-                        android:layout_marginBottom="8dp">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Thời gian sạc: "
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary" />
+                        android:gravity="center_vertical">
 
                         <TextView
                             android:id="@+id/tvSessionTimer"
@@ -283,54 +273,32 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="00:00:00"
-                            android:textSize="22sp"
+                            android:textSize="28sp"
                             android:textStyle="bold"
                             android:maxLines="1"
                             android:textColor="@color/text_primary" />
-                    </LinearLayout>
 
-                    <!-- Hàng nút điều khiển (Đặt lại, Dừng đo, Bắt đầu/Tạm dừng/Tiếp tục) -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="end|center_vertical">
-
-                        <!-- Nút Đặt lại (Hiện khi tạm dừng hoặc đã dừng) -->
+                        <!-- Nút Đặt lại (Chỉ hiện khi tạm dừng) -->
                         <Button
                             android:id="@+id/btnResetSession"
                             android:layout_width="wrap_content"
-                            android:layout_height="40dp"
+                            android:layout_height="42dp"
                             android:text="Đặt lại"
                             android:textAllCaps="false"
-                            android:textSize="12sp"
+                            android:textSize="13sp"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:visibility="gone"
-                            android:layout_marginEnd="6dp"
+                            android:layout_marginEnd="8dp"
                             app:cornerRadius="10dp" />
 
-                        <!-- Nút Dừng hẳn đo -->
-                        <Button
-                            android:id="@+id/btnStopSession"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:text="Dừng đo"
-                            android:textAllCaps="false"
-                            android:textSize="12sp"
-                            android:backgroundTint="@color/error"
-                            android:textColor="@android:color/white"
-                            android:visibility="gone"
-                            android:layout_marginEnd="6dp"
-                            app:cornerRadius="10dp" />
-
-                        <!-- Nút Bắt đầu / Tạm dừng / Tiếp tục -->
+                        <!-- Nút Bắt đầu đo / Tạm dừng / Tiếp tục -->
                         <Button
                             android:id="@+id/btnToggleSession"
                             android:layout_width="wrap_content"
-                            android:layout_height="40dp"
+                            android:layout_height="42dp"
                             android:text="Bắt đầu đo"
                             android:textAllCaps="false"
-                            android:textSize="12sp"
+                            android:textSize="13sp"
                             app:cornerRadius="10dp" />
                     </LinearLayout>
 
@@ -341,7 +309,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:visibility="gone"
-                        android:layout_marginTop="14dp">
+                        android:layout_marginTop="16dp">
 
                         <!-- Bảng thống kê tóm tắt phiên sạc -->
                         <LinearLayout
@@ -549,7 +517,7 @@
                             android:id="@+id/tvHealthPercent"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="89.0 %"
+                            android:text="90.0 %"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/success" />
@@ -572,7 +540,7 @@
                             android:id="@+id/tvCycleCount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="780 lần"
+                            android:text="781 lần"
                             android:textSize="15sp"
                             android:textStyle="bold"
                             android:textColor="@color/primary" />
@@ -737,12 +705,12 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Footer: Made with ❤️ by @vudatz - ColorBat v1.1.0 -->
+            <!-- Footer: Made with ❤️ by @vudatz - ColorBat v1.2.0 -->
             <TextView
                 android:id="@+id/tvFooter"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Made with &#x2764;&#xFE0F; by @vudatz - ColorBat v1.1.0"
+                android:text="Made with &#x2764;&#xFE0F; by @vudatz - ColorBat v1.2.0"
                 android:textSize="12sp"
                 android:textColor="@color/text_secondary"
                 android:gravity="center"

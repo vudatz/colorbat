@@ -16,7 +16,7 @@
         android:textColor="@color/text_primary"
         android:layout_marginBottom="16dp" />
 
-    <!-- 1. Cấu hình Pin 2 cell nối tiếp -->
+    <!-- 1. Cấu hình Pin 2 cell nối tiếp (Đã loại bỏ dòng mô tả theo yêu cầu) -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/switchDualCell"
         android:layout_width="match_parent"
@@ -24,7 +24,7 @@
         android:text="Cấu hình Pin 2 cell (Dual-Cell)"
         android:textColor="@color/text_primary"
         android:textSize="15sp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="16dp" />
 
     <!-- 2. Cảnh báo chu kỳ sạc -->
     <com.google.android.material.switchmaterial.SwitchMaterial

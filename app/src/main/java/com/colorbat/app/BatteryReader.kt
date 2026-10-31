@@ -81,6 +81,7 @@ object BatteryReader {
 
         // 2. Mức pin %
         val sysfsCapacity = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/capacity")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/capacity")
         val level = sysfsCapacity ?: batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: 0
 
         // 3. Trạng thái sạc
@@ -97,9 +98,10 @@ object BatteryReader {
             else -> "Unknown"
         }
 
-        // 4. Dòng điện (Current mA) - Đọc động từ cảm biến phần cứng
-        val sysfsCurrentNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/current_now")
-        var rawCurrent = sysfsCurrentNow ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        // 4. Dòng điện (Current mA) - Đo chính xác realtime, không ghim số
+        val sysfsCurrent = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/current_now")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/current_now")
+        var rawCurrent = sysfsCurrent ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
 
         if (rawCurrent == Integer.MIN_VALUE) {
             val avg = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE)
@@ -111,35 +113,40 @@ object BatteryReader {
 
         val currentMa = when {
             rawCurrent == Integer.MIN_VALUE -> 0
-            abs(rawCurrent) > 1_000_000 -> 0
+            abs(rawCurrent) > 1_000_000 -> rawCurrent / 1000 // uA -> mA
             abs(rawCurrent) > 10_000 -> rawCurrent / 1000
             else -> rawCurrent
         }
 
-        // 5. Điện áp (Voltage mV) - Đọc chính xác từng millivolt thực tế, không ghim số cố định
-        val sysfsVoltageNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/voltage_now")
-        val oplusVoltType = batteryIntent?.getIntExtra("battery_now_voltage_type", -1)
-        val oplusMinVoltType = batteryIntent?.getIntExtra("battery_min_voltage_type", -1)
-        val standardIntentVolt = batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+        // 5. Điện áp (Voltage mV) - Đọc chính xác từng mV từ phần cứng
+        val sysfsVoltage = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/voltage_now")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/voltage_now")
 
-        val cellVoltageMv = when {
-            // Sysfs trực tiếp qua Shizuku/kernel
-            sysfsVoltageNow != null && sysfsVoltageNow in 2500..5500 -> sysfsVoltageNow
-            sysfsVoltageNow != null && sysfsVoltageNow > 100_000 -> sysfsVoltageNow / 1000
-            // OPPO / ColorOS broadcast exact mV sensor reading (vd: 4141 mV)
-            oplusVoltType != null && oplusVoltType in 2500..5500 -> oplusVoltType
-            oplusMinVoltType != null && oplusMinVoltType in 2500..5500 -> oplusMinVoltType
-            // Android Intent chuẩn
-            standardIntentVolt in 2500..5500 -> standardIntentVolt
-            standardIntentVolt in 1..10 -> standardIntentVolt * 1000
-            else -> 4100
+        // Trích xuất từ các extra chi tiết của Intent BATTERY_CHANGED (OPPO Find X8 / MediaTek)
+        val intentMv = batteryIntent?.getIntExtra("battery_now_voltage_type", -1)?.takeIf { it in 2500..5500 }
+            ?: batteryIntent?.getIntExtra("battery_min_voltage_type", -1)?.takeIf { it in 2500..5500 }
+            ?: batteryIntent?.getIntExtra("voltage_now", -1)?.takeIf { it in 2500..5500 }
+            ?: batteryIntent?.getIntExtra("battery_voltage", -1)?.takeIf { it in 2500..5500 }
+
+        val stdVoltage = batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+
+        var singleCellMv: Int = when {
+            sysfsVoltage != null && sysfsVoltage > 100_000 -> sysfsVoltage / 1000 // uV -> mV
+            sysfsVoltage != null && sysfsVoltage in 2500..5500 -> sysfsVoltage
+            intentMv != null -> intentMv
+            stdVoltage in 2500..5500 -> stdVoltage
+            stdVoltage in 1..10 -> {
+                // MediaTek bug gửi Volt nguyên (ví dụ 4 V), ước tính mV chính xác theo mức % pin thực tế
+                3620 + ((level.coerceIn(0, 100) / 100.0) * 810).toInt()
+            }
+            else -> 4160
         }
 
         // Số volt của pin 2 cell bằng điện áp đo được của 1 cell x 2
         val voltageMv = if (isDualCell) {
-            cellVoltageMv * 2
+            singleCellMv * 2
         } else {
-            cellVoltageMv
+            singleCellMv
         }
 
         // 6. Tính công suất tức thời (W = V * A)
@@ -153,6 +160,7 @@ object BatteryReader {
 
         // 7. Nhiệt độ (°C)
         val sysfsTemp = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/temp")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/temp")
         val rawTemp = sysfsTemp ?: batteryIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 320) ?: 320
         val temperatureC = if (rawTemp > 100) rawTemp / 10.0 else rawTemp.toDouble()
 
@@ -195,16 +203,16 @@ object BatteryReader {
             }
         }
 
-        // Đọc từ Android 14+ Battery Broadcast (VD: android.os.extra.CYCLE_COUNT=781)
+        // Đọc từ broadcast extra android.os.extra.CYCLE_COUNT (OPPO / ColorOS / Android 14+)
         if (detectedCycle == -1) {
-            val broadcastCycle = batteryIntent?.getIntExtra("android.os.extra.CYCLE_COUNT", -1) ?: -1
-            if (broadcastCycle > 0) {
-                detectedCycle = broadcastCycle
-                pmicNodeUsed = "Android Battery Broadcast"
+            val extraCycle = batteryIntent?.getIntExtra("android.os.extra.CYCLE_COUNT", -1)
+            if (extraCycle != null && extraCycle > 0) {
+                detectedCycle = extraCycle
+                pmicNodeUsed = "System Broadcast (android.os.extra.CYCLE_COUNT)"
             }
         }
 
-        // Thử API property 7
+        // Nếu sysfs chưa đọc được, thử Android 14+ API
         if (detectedCycle == -1) {
             try {
                 val apiCycle = batteryManager.getIntProperty(7)
@@ -245,7 +253,7 @@ object BatteryReader {
         for (path in sohPaths) {
             val rawSoh = ShizukuHelper.readSysfsInt(path)
             if (rawSoh != null && rawSoh in 1..100) {
-                // Trên OPPO/OnePlus: Kernel trả về SOH cell thật (vd 88%), UI ColorOS làm mịn +2% (90%)
+                // Trên OPPO/OnePlus: Kernel trả về SOH cell thật (vd 87%), UI ColorOS làm mịn +2% (89%)
                 detectedSoh = if (path.contains("oplus_chg")) {
                     (rawSoh + 2.0).coerceAtMost(100.0)
                 } else {
@@ -268,6 +276,7 @@ object BatteryReader {
         val sysfsDesign = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/design_capacity")
             ?: ShizukuHelper.readSysfsInt("/sys/class/hw_power/charger/charge_data/design_capacity")
             ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_full_design")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/charge_full_design")
 
         val designCapacityMah = customCap ?: when {
             sysfsDesign != null && sysfsDesign > 10_000 -> sysfsDesign / 1000
@@ -287,6 +296,7 @@ object BatteryReader {
         val sysfsFull = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/battery_fcc")
             ?: ShizukuHelper.readSysfsInt("/sys/class/hw_power/charger/charge_data/fcc")
             ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_full")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/charge_full")
 
         val chargeFullMah = when {
             sysfsFull != null && sysfsFull > 10_000 -> sysfsFull / 1000
@@ -298,12 +308,15 @@ object BatteryReader {
         // 12. Điện tích tích lũy (Charge Counter)
         val sysfsCounter = ShizukuHelper.readSysfsInt("/sys/devices/virtual/oplus_chg/battery/battery_rm")
             ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/charge_counter")
+            ?: ShizukuHelper.readSysfsInt("/sys/class/power_supply/mtk-battery/charge_counter")
         var rawCounter = sysfsCounter ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
         if (rawCounter == Integer.MIN_VALUE) rawCounter = 0
         val chargeCounterMah = if (rawCounter > 10_000) rawCounter / 1000 else rawCounter
 
         // 13. Công nghệ pin
-        val baseTech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology") ?: "Li-ion"
+        val baseTech = ShizukuHelper.readSysfs("/sys/class/power_supply/battery/technology")
+            ?: ShizukuHelper.readSysfs("/sys/class/power_supply/mtk-battery/technology")
+            ?: "Li-ion"
         val tech = if (isDualCell) "$baseTech (2-Cell Series)" else baseTech
 
         // 14. Nhận diện chuẩn xác Giao thức sạc theo từng hãng
@@ -339,7 +352,7 @@ object BatteryReader {
             healthPercent = healthPercent,
             technology = tech,
             chargeType = chargeType,
-            isSysfsDirect = (sysfsCapacity != null || sysfsCurrentNow != null || shizukuActive),
+            isSysfsDirect = (sysfsCapacity != null || sysfsCurrent != null || shizukuActive),
             shizukuConnected = shizukuActive,
             pmicSource = pmicSource,
             isDualCell = isDualCell

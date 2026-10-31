@@ -43,11 +43,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvVoltageV: TextView
     private lateinit var tvTemperature: TextView
 
-    // Card 2: Session & Chart
+    // Card 2: Session & Chart (Đã loại bỏ hoàn toàn nút Dừng đo)
     private lateinit var tvSessionBadge: TextView
     private lateinit var tvSessionTimer: TextView
     private lateinit var btnToggleSession: Button
-    private lateinit var btnStopSession: Button
     private lateinit var btnResetSession: Button
     private lateinit var layoutChartContainer: View
     private lateinit var tvSessionAvgWatts: TextView
@@ -89,7 +88,7 @@ class MainActivity : AppCompatActivity() {
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            // Khi cắm cáp USB hoặc bật gỡ lỗi, kích hoạt đọc lại phần cứng ngay lập tức
+            // Khi cắm cáp USB hoặc có tín hiệu nguồn, lập tức làm mới thông số
             lifecycleScope.launch(Dispatchers.IO) {
                 val info = BatteryReader.getBatteryInfo(applicationContext)
                 withContext(Dispatchers.Main) {
@@ -131,21 +130,21 @@ class MainActivity : AppCompatActivity() {
         registerReceiver(usbReceiver, filter)
     }
 
+    // 3. Alert thông báo mở app chuẩn xác theo yêu cầu
     private fun checkFirstLaunchAlert() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alertKey = "first_launch_alert_v121"
-        val alertShown = prefs.getBoolean(alertKey, false)
+        val alertShown = prefs.getBoolean("alert_dual_cell_v3", false)
 
         if (!alertShown) {
             AlertDialog.Builder(this)
                 .setTitle("⚡ Lưu ý")
-                .setMessage("Một số thiết bị hiện nay sử dụng pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell để tối ưu hóa việc sạc nhanh . Kiểm tra kĩ thông tin cell pin của bạn rồi vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
+                .setMessage("⚡ Lưu ý: Một số thiết bị hiện nay sử dụng pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell để tối ưu hóa việc sạc nhanh . Kiểm tra kĩ thông tin cell pin của bạn rồi vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
                 .setPositiveButton("Vào Cài đặt") { _, _ ->
-                    prefs.edit().putBoolean(alertKey, true).apply()
+                    prefs.edit().putBoolean("alert_dual_cell_v3", true).apply()
                     showSettingsDialog()
                 }
                 .setNegativeButton("Đã hiểu") { _, _ ->
-                    prefs.edit().putBoolean(alertKey, true).apply()
+                    prefs.edit().putBoolean("alert_dual_cell_v3", true).apply()
                 }
                 .setCancelable(false)
                 .show()
@@ -172,10 +171,10 @@ class MainActivity : AppCompatActivity() {
         tvVoltageV = findViewById(R.id.tvVoltageV)
         tvTemperature = findViewById(R.id.tvTemperature)
 
+        // Card 2
         tvSessionBadge = findViewById(R.id.tvSessionBadge)
         tvSessionTimer = findViewById(R.id.tvSessionTimer)
         btnToggleSession = findViewById(R.id.btnToggleSession)
-        btnStopSession = findViewById(R.id.btnStopSession)
         btnResetSession = findViewById(R.id.btnResetSession)
         layoutChartContainer = findViewById(R.id.layoutChartContainer)
         tvSessionAvgWatts = findViewById(R.id.tvSessionAvgWatts)
@@ -184,6 +183,7 @@ class MainActivity : AppCompatActivity() {
         tvSessionLevelDelta = findViewById(R.id.tvSessionLevelDelta)
         powerChartView = findViewById(R.id.powerChartView)
 
+        // Card 3
         tvShizukuStatus = findViewById(R.id.tvShizukuStatus)
         btnGrantShizuku = findViewById(R.id.btnGrantShizuku)
         tvDeviceName = findViewById(R.id.tvDeviceName)
@@ -202,7 +202,7 @@ class MainActivity : AppCompatActivity() {
         val versionName = try {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (e: Exception) {
-            "1.1.0"
+            "1.2.0"
         }
         tvFooter.text = "Made with ❤️ by @vudatz - ColorBat v$versionName"
     }
@@ -225,25 +225,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // 4. Bắt đầu đo / Tạm dừng / Tiếp tục (Loại bỏ hoàn toàn nút Dừng đo)
         btnToggleSession.setOnClickListener {
             if (!ChargingSessionManager.isRunning) {
-                // Bắt đầu đo mới
+                // Chưa chạy -> Bắt đầu đo mới
                 startSessionService(ChargingMonitorService.ACTION_START)
             } else if (ChargingSessionManager.isPaused) {
-                // Tiếp tục đo
+                // Đang tạm dừng -> Tiếp tục đo
                 startSessionService(ChargingMonitorService.ACTION_RESUME)
             } else {
-                // Tạm dừng đo
+                // Đang đo -> Tạm dừng (hiện nút Đặt lại và nút Tiếp tục)
                 startSessionService(ChargingMonitorService.ACTION_PAUSE)
             }
             syncSessionUi()
         }
 
-        btnStopSession.setOnClickListener {
-            startSessionService(ChargingMonitorService.ACTION_STOP)
-            syncSessionUi()
-        }
-
+        // Đặt lại phiên đo trực tiếp trong app (không bị văng app)
         btnResetSession.setOnClickListener {
             startSessionService(ChargingMonitorService.ACTION_STOP)
             ChargingSessionManager.reset()
@@ -272,9 +269,9 @@ class MainActivity : AppCompatActivity() {
 
         if (ChargingSessionManager.isRunning) {
             layoutChartContainer.visibility = View.VISIBLE
-            btnStopSession.visibility = View.VISIBLE
 
             if (ChargingSessionManager.isPaused) {
+                // TẠM DỪNG -> Hiện nút Đặt lại và nút Tiếp tục
                 tvSessionBadge.text = "TẠM DỪNG"
                 tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
@@ -282,6 +279,7 @@ class MainActivity : AppCompatActivity() {
                 btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
                 btnResetSession.visibility = View.VISIBLE
             } else {
+                // ĐANG ĐO -> Nút Tạm dừng, ẩn nút Đặt lại
                 tvSessionBadge.text = "ĐANG ĐO..."
                 tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.primary))
                 tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.primary_light))
@@ -290,28 +288,14 @@ class MainActivity : AppCompatActivity() {
                 btnResetSession.visibility = View.GONE
             }
         } else {
-            // Không chạy
-            if (ChargingSessionManager.sessionSeconds > 0) {
-                // Đã dừng nhưng còn dữ liệu
-                layoutChartContainer.visibility = View.VISIBLE
-                tvSessionBadge.text = "ĐÃ KẾT THÚC"
-                tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
-                tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
-                btnToggleSession.text = "Đo mới"
-                btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
-                btnStopSession.visibility = View.GONE
-                btnResetSession.visibility = View.VISIBLE
-            } else {
-                // Chưa đo gì (mặc định ban đầu)
-                layoutChartContainer.visibility = View.GONE
-                tvSessionBadge.text = "SẴN SÀNG"
-                tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
-                tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
-                btnToggleSession.text = "Bắt đầu đo"
-                btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
-                btnStopSession.visibility = View.GONE
-                btnResetSession.visibility = View.GONE
-            }
+            // Chưa đo hoặc đã đặt lại về ban đầu
+            layoutChartContainer.visibility = View.GONE
+            tvSessionBadge.text = "SẴN SÀNG"
+            tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
+            btnToggleSession.text = "Bắt đầu đo"
+            btnToggleSession.setBackgroundColor(ContextCompat.getColor(this, R.color.primary))
+            btnResetSession.visibility = View.GONE
         }
 
         // Cập nhật thống kê tóm tắt
@@ -327,7 +311,7 @@ class MainActivity : AppCompatActivity() {
             tvSessionLevelDelta.text = "--%"
         }
 
-        // Cập nhật toàn bộ sóng biểu đồ từ đầu đến cuối
+        // Cập nhật biểu đồ toàn session
         if (ChargingSessionManager.powerPoints.isNotEmpty()) {
             powerChartView.setPoints(ChargingSessionManager.powerPoints, avgWatts.toFloat())
         }
@@ -389,10 +373,11 @@ class MainActivity : AppCompatActivity() {
             tvCurrentMa.text = String.format(Locale.US, "- %d mA", absCurrent)
         }
 
+        // Hiển thị điện áp chính xác từng mV
         tvVoltageV.text = String.format(Locale.US, "%.3f V", info.voltageMv / 1000.0)
         tvTemperature.text = String.format(Locale.US, "%.1f °C", info.temperatureC)
 
-        // Sức khỏe pin SOH - Hiển thị trung thực
+        // Sức khỏe pin SOH - Đọc thật
         if (info.healthPercent >= 0.0) {
             tvHealthPercent.text = String.format(Locale.US, "%.1f %%", info.healthPercent)
             tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.success))
@@ -401,7 +386,7 @@ class MainActivity : AppCompatActivity() {
             tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
 
-        // Chu kỳ sạc Cycle Count - Hiển thị trung thực
+        // Chu kỳ sạc Cycle Count - Đọc thật
         if (info.cycleCount >= 0) {
             tvCycleCount.text = "${info.cycleCount} lần"
             tvCycleCount.setTextColor(ContextCompat.getColor(this, R.color.primary))
