@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkNotificationAndLiveAlertPermissions() {
-        // 1. Tự động hiện popup xin quyền thông báo hệ thống (Android 13+ / ColorOS 13-17)
+        // Tự động kiểm tra và yêu cầu quyền thông báo hệ thống (Android 13+ / ColorOS 13-17)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(
@@ -138,33 +138,6 @@ class MainActivity : AppCompatActivity() {
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIF_PERMISSION_REQUEST_CODE
                 )
-                return
-            }
-        }
-
-        // 2. Tự động kiểm tra nhắc bật Cảnh báo trực tiếp (ColorOS Fluid Cloud Capsule)
-        checkLiveAlertPrompt()
-    }
-
-    private fun checkLiveAlertPrompt() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val liveAlertPrompted = prefs.getBoolean("live_alert_prompt_v2", false)
-        if (!liveAlertPrompted) {
-            val isOppo = Build.MANUFACTURER.contains("OPPO", ignoreCase = true) ||
-                         Build.MANUFACTURER.contains("REALME", ignoreCase = true) ||
-                         Build.MANUFACTURER.contains("ONEPLUS", ignoreCase = true)
-            if (isOppo) {
-                AlertDialog.Builder(this)
-                    .setTitle("Cảnh Báo Trực Tiếp (Fluid Cloud)")
-                    .setMessage("Để viên thuốc sạc Dynamic Island hiển thị tự động trên thanh trạng thái ColorOS, hãy đảm bảo mục 'Cảnh báo trực tiếp' trong cài đặt thông báo đã được BẬT.")
-                    .setPositiveButton("Mở cài đặt") { _, _ ->
-                        prefs.edit().putBoolean("live_alert_prompt_v2", true).apply()
-                        openNotificationSettings()
-                    }
-                    .setNegativeButton("Đã hiểu") { _, _ ->
-                        prefs.edit().putBoolean("live_alert_prompt_v2", true).apply()
-                    }
-                    .show()
             }
         }
     }
@@ -198,7 +171,6 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == NOTIF_PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 showBottomNotice("Đã cấp quyền thông báo thành công!")
-                checkLiveAlertPrompt()
             }
         }
     }

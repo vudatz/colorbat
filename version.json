@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "1.2.10",
+  "versionCode": 14,
+  "versionName": "1.3.0",
   "apkUrl": "https://github.com/vudatz/colorbat/releases/download/latest/app-debug.apk",
-  "changelog": "• Tích hợp hệ thống tự động cập nhật OTA trực tiếp trong ứng dụng.\n• Nút Cập nhật OTA trên thanh công cụ nằm giữa icon Facebook và Cài đặt.\n• Tự động dọn dẹp file cài đặt trong bộ nhớ sau khi hoàn tất.\n• Tự động hiện yêu cầu cấp quyền Thông báo & Cảnh báo trực tiếp.\n• Màu thanh trên cùng: Đen ở Dark mode, Trắng ở Light mode.\n• Toàn bộ thông báo cuối app hiển thị không kèm icon."
+  "changelog": "• Tự động kiểm tra và yêu cầu cấp quyền thông báo hệ thống mượt mà, loại bỏ hoàn toàn hộp thoại popup thủ công.\n• Cập nhật phiên bản v1.3.0 với độ ổn định cao và hiệu suất tối ưu.\n• Tự động dọn dẹp file cài đặt sau khi cập nhật hoàn tất."
 }
