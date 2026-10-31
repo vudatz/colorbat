@@ -147,6 +147,8 @@ class ChargingMonitorService : Service() {
 
         val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
         val builder = NotificationCompat.Builder(this, channelId)
+            .setContentTitle("ColorBat")
+            .setContentText(unifiedLine)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
@@ -157,11 +159,7 @@ class ChargingMonitorService : Service() {
             // Bỏ icon app: dùng icon trong suốt + largeIcon rỗng để không bị đè icon app mặc định
             builder.setSmallIcon(R.drawable.ic_transparent)
             builder.setLargeIcon(transparentBitmap)
-
-            // Thay đổi toàn bộ dòng tiêu đề thành định dạng duy nhất
-            builder.setContentTitle(unifiedLine)
-            builder.setContentText(null)
-            builder.setSubText(null) // Loại bỏ chữ Fluid Cloud theo Mục 1
+            builder.setSubText(null) // Loại bỏ chữ Fluid Cloud
 
             builder.setCategory(NotificationCompat.CATEGORY_STATUS)
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -176,6 +174,7 @@ class ChargingMonitorService : Service() {
                 putBoolean("android.requestPromotedOngoing", true)
                 putCharSequence("android.shortCriticalText", shortText)
                 putString("android.substName", "ColorBat")
+                putBoolean("android.showSmallIcon", false)
             }
             builder.addExtras(extras)
 
@@ -197,8 +196,6 @@ class ChargingMonitorService : Service() {
             builder.addAction(toggleIcon, toggleLabel, togglePending)
         } else {
             builder.setSmallIcon(R.mipmap.ic_launcher)
-            builder.setContentTitle("ColorBat - Phiên đo sạc")
-            builder.setContentText(unifiedLine)
             builder.setPriority(NotificationCompat.PRIORITY_LOW)
         }
 
