@@ -164,8 +164,10 @@ class ChargingMonitorService : Service() {
             }
 
             // Gắn AOSP Live Notification & ColorOS promoted ongoing tag
+            val shortText = String.format(Locale.US, "⚡ %.1fW", avgPower)
             val extras = android.os.Bundle().apply {
                 putBoolean("android.requestPromotedOngoing", true)
+                putCharSequence("android.shortCriticalText", shortText)
                 putString("android.substName", "ColorBat")
             }
             builder.addExtras(extras)
