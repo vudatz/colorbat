@@ -97,7 +97,7 @@ object BatteryReader {
             else -> "Unknown"
         }
 
-        // 4. Dòng điện (Current mA) - Bảo vệ chống Integer.MIN_VALUE
+        // 4. Dòng điện (Current mA) - Đọc động từ cảm biến phần cứng
         val sysfsCurrentNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/current_now")
         var rawCurrent = sysfsCurrentNow ?: batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
 
@@ -116,24 +116,30 @@ object BatteryReader {
             else -> rawCurrent
         }
 
-        // 5. Điện áp (Voltage mV) - Hỗ trợ Pin 2 cell nối tiếp
+        // 5. Điện áp (Voltage mV) - Đọc chính xác từng millivolt thực tế, không ghim số cố định
         val sysfsVoltageNow = ShizukuHelper.readSysfsInt("/sys/class/power_supply/battery/voltage_now")
-        var rawVoltage = when {
-            sysfsVoltageNow != null -> if (sysfsVoltageNow > 100_000) sysfsVoltageNow / 1000 else sysfsVoltageNow
-            else -> batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 4300) ?: 4300
+        val oplusVoltType = batteryIntent?.getIntExtra("battery_now_voltage_type", -1)
+        val oplusMinVoltType = batteryIntent?.getIntExtra("battery_min_voltage_type", -1)
+        val standardIntentVolt = batteryIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+
+        val cellVoltageMv = when {
+            // Sysfs trực tiếp qua Shizuku/kernel
+            sysfsVoltageNow != null && sysfsVoltageNow in 2500..5500 -> sysfsVoltageNow
+            sysfsVoltageNow != null && sysfsVoltageNow > 100_000 -> sysfsVoltageNow / 1000
+            // OPPO / ColorOS broadcast exact mV sensor reading (vd: 4141 mV)
+            oplusVoltType != null && oplusVoltType in 2500..5500 -> oplusVoltType
+            oplusMinVoltType != null && oplusMinVoltType in 2500..5500 -> oplusMinVoltType
+            // Android Intent chuẩn
+            standardIntentVolt in 2500..5500 -> standardIntentVolt
+            standardIntentVolt in 1..10 -> standardIntentVolt * 1000
+            else -> 4100
         }
 
-        if (rawVoltage in 1..10) {
-            rawVoltage *= 1000
-        }
-
-        // Nếu người dùng bật tùy chọn Pin 2 cell:
-        // Cảm biến 1 cell báo khoảng 3.5V - 4.5V (3500 - 4500 mV).
-        // Khi bật 2 cell nối tiếp, điện áp x2 (~8.8V) để hiển thị và tính đúng công suất
-        val voltageMv = if (isDualCell && rawVoltage in 2500..5500) {
-            rawVoltage * 2
+        // Số volt của pin 2 cell bằng điện áp đo được của 1 cell x 2
+        val voltageMv = if (isDualCell) {
+            cellVoltageMv * 2
         } else {
-            rawVoltage
+            cellVoltageMv
         }
 
         // 6. Tính công suất tức thời (W = V * A)
@@ -189,7 +195,16 @@ object BatteryReader {
             }
         }
 
-        // Nếu sysfs chưa đọc được, thử Android 14+ API
+        // Đọc từ Android 14+ Battery Broadcast (VD: android.os.extra.CYCLE_COUNT=781)
+        if (detectedCycle == -1) {
+            val broadcastCycle = batteryIntent?.getIntExtra("android.os.extra.CYCLE_COUNT", -1) ?: -1
+            if (broadcastCycle > 0) {
+                detectedCycle = broadcastCycle
+                pmicNodeUsed = "Android Battery Broadcast"
+            }
+        }
+
+        // Thử API property 7
         if (detectedCycle == -1) {
             try {
                 val apiCycle = batteryManager.getIntProperty(7)
@@ -230,7 +245,7 @@ object BatteryReader {
         for (path in sohPaths) {
             val rawSoh = ShizukuHelper.readSysfsInt(path)
             if (rawSoh != null && rawSoh in 1..100) {
-                // Trên OPPO/OnePlus: Kernel trả về SOH cell thật (vd 87%), UI ColorOS làm mịn +2% (89%)
+                // Trên OPPO/OnePlus: Kernel trả về SOH cell thật (vd 88%), UI ColorOS làm mịn +2% (90%)
                 detectedSoh = if (path.contains("oplus_chg")) {
                     (rawSoh + 2.0).coerceAtMost(100.0)
                 } else {

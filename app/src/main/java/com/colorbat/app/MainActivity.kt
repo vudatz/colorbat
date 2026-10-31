@@ -133,18 +133,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkFirstLaunchAlert() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val alertShown = prefs.getBoolean("first_launch_alert_shown", false)
+        val alertKey = "first_launch_alert_v121"
+        val alertShown = prefs.getBoolean(alertKey, false)
 
         if (!alertShown) {
             AlertDialog.Builder(this)
-                .setTitle("⚡ Lưu ý về Pin 2 cell")
-                .setMessage("Nhiều dòng smartphone sạc nhanh hiện nay (như OPPO Find X8, SuperVOOC, OnePlus,...) sử dụng cấu trúc pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell (~8.8V thay vì ~4.4V).\n\nNếu bạn thấy app hiển thị công suất sạc chỉ bằng một nửa so với củ sạc, hãy vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
+                .setTitle("⚡ Lưu ý")
+                .setMessage("Một số thiết bị hiện nay sử dụng pin 2 cell nối tiếp với điện áp tổng gấp đôi (x2) điện áp 1 cell để tối ưu hóa việc sạc nhanh . Kiểm tra kĩ thông tin cell pin của bạn rồi vào mục Cài đặt (icon ⚙️) để bật chế độ 'Pin 2 cell' nhé!")
                 .setPositiveButton("Vào Cài đặt") { _, _ ->
-                    prefs.edit().putBoolean("first_launch_alert_shown", true).apply()
+                    prefs.edit().putBoolean(alertKey, true).apply()
                     showSettingsDialog()
                 }
                 .setNegativeButton("Đã hiểu") { _, _ ->
-                    prefs.edit().putBoolean("first_launch_alert_shown", true).apply()
+                    prefs.edit().putBoolean(alertKey, true).apply()
                 }
                 .setCancelable(false)
                 .show()

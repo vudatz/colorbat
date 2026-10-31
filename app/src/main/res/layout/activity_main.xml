@@ -258,14 +258,9 @@
                             android:paddingBottom="3dp" />
                     </LinearLayout>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Hỗ trợ chạy ngầm liên tục khi tắt màn hình, tính công suất sạc trung bình chuẩn"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginTop="2dp"
-                        android:layout_marginBottom="12dp" />
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="12dp" />
 
                     <!-- Timer thời gian sạc -->
                     <LinearLayout
@@ -480,16 +475,8 @@
                         android:text="Thông Tin Chi Tiết"
                         android:textSize="18sp"
                         android:textStyle="bold"
-                        android:textColor="@color/text_primary" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Sức khỏe, chu kỳ sạc và thông số phần cứng PMIC kernel"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:layout_marginTop="2dp"
-                        android:layout_marginBottom="12dp" />
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="14dp" />
 
                     <!-- Trạng thái Shizuku PMIC Bridge -->
                     <LinearLayout
