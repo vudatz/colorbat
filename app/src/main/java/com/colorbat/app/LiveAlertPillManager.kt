@@ -198,12 +198,22 @@ object LiveAlertPillManager {
         isExpanded = true
         layoutCollapsed?.visibility = View.GONE
         layoutExpanded?.visibility = View.VISIBLE
+        pillView?.let { v ->
+            layoutParams?.let { lp ->
+                try { windowManager?.updateViewLayout(v, lp) } catch (e: Exception) {}
+            }
+        }
     }
 
     private fun collapse() {
         isExpanded = false
         layoutExpanded?.visibility = View.GONE
         layoutCollapsed?.visibility = View.VISIBLE
+        pillView?.let { v ->
+            layoutParams?.let { lp ->
+                try { windowManager?.updateViewLayout(v, lp) } catch (e: Exception) {}
+            }
+        }
     }
 
     private fun updateContent(

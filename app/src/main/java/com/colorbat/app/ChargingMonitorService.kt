@@ -111,7 +111,7 @@ class ChargingMonitorService : Service() {
                             protocol = info.chargeType,
                             chargedMah = ChargingSessionManager.totalMahCharged,
                             avgWatts = ChargingSessionManager.getAveragePower(),
-                            peakWatts = ChargingSessionManager.peakPower
+                            peakWatts = ChargingSessionManager.peakPower.toDouble()
                         )
                     } else {
                         LiveAlertPillManager.dismiss()
