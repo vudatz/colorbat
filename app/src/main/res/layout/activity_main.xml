@@ -228,22 +228,39 @@
                     android:padding="16dp"
                     android:animateLayoutChanges="true">
 
-                    <!-- Header & Badge -->
+                    <!-- Header & Badge: Bấm vào dòng title "Biểu đồ sạc" để thu gọn / mở rộng biểu đồ -->
                     <LinearLayout
+                        android:id="@+id/layoutChartHeader"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:background="?attr/selectableItemBackground"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
                         android:layout_marginBottom="14dp">
 
                         <TextView
+                            android:id="@+id/tvChartSectionTitle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Phiên Đo Sạc &amp; Biểu Đồ"
+                            android:text="Biểu đồ sạc"
                             android:textSize="18sp"
                             android:textStyle="bold"
                             android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:id="@+id/tvChartToggleArrow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="▲"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginEnd="10dp" />
 
                         <TextView
                             android:id="@+id/tvSessionBadge"

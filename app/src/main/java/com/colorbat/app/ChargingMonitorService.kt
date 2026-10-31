@@ -13,7 +13,8 @@ import java.util.Locale
 
 class ChargingMonitorService : Service() {
 
-    private val CHANNEL_ID = "colorbat_charging_session"
+    private val CHANNEL_LIVE_ALERT = "colorbat_live_alert_channel"
+    private val CHANNEL_NORMAL = "colorbat_charging_session"
     private val NOTIFICATION_ID = 2001
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -24,7 +25,7 @@ class ChargingMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        createNotificationChannels()
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ColorBat::ChargingSessionWakeLock").apply {
@@ -58,6 +59,7 @@ class ChargingMonitorService : Service() {
             }
             ACTION_STOP -> {
                 stopMonitoring()
+                LiveAlertPillManager.dismiss()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
@@ -90,6 +92,31 @@ class ChargingMonitorService : Service() {
                         info.level
                     )
 
+                    val prefs = applicationContext.getSharedPreferences("colorbat_prefs", Context.MODE_PRIVATE)
+                    val isLiveAlert = prefs.getBoolean("live_alert_enabled", true)
+
+                    val hours = ChargingSessionManager.sessionSeconds / 3600
+                    val mins = (ChargingSessionManager.sessionSeconds % 3600) / 60
+                    val secs = ChargingSessionManager.sessionSeconds % 60
+                    val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
+
+                    if (isLiveAlert) {
+                        LiveAlertPillManager.showOrUpdate(
+                            context = applicationContext,
+                            watts = info.powerWatts,
+                            currentMa = info.currentMa,
+                            voltageMv = info.voltageMv,
+                            batteryLevel = info.level,
+                            timeString = timeStr,
+                            protocol = info.chargeType,
+                            chargedMah = ChargingSessionManager.totalMahCharged,
+                            avgWatts = ChargingSessionManager.getAveragePower(),
+                            peakWatts = ChargingSessionManager.peakPower
+                        )
+                    } else {
+                        LiveAlertPillManager.dismiss()
+                    }
+
                     counter++
                     if (counter % 2 == 0) {
                         updateNotification()
@@ -107,6 +134,9 @@ class ChargingMonitorService : Service() {
     }
 
     private fun buildNotification(): Notification {
+        val prefs = applicationContext.getSharedPreferences("colorbat_prefs", Context.MODE_PRIVATE)
+        val isLiveAlert = prefs.getBoolean("live_alert_enabled", true)
+
         val openAppIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -120,25 +150,45 @@ class ChargingMonitorService : Service() {
         val secs = ChargingSessionManager.sessionSeconds % 60
         val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
 
+        val avgPower = ChargingSessionManager.getAveragePower()
         val statusText = if (ChargingSessionManager.isPaused) "Tạm dừng" else "Đang đo"
+        val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
+
+        val title = if (isLiveAlert) {
+            String.format(Locale.US, "⚡ Sạc live: %.1f W • %s", avgPower, timeStr)
+        } else {
+            "ColorBat - Phiên đo sạc"
+        }
+
         val content = String.format(
             Locale.US,
             "[%s] TG: %s | TB: %.1f W | Đỉnh: %.1f W | +%.0f mAh",
             statusText,
             timeStr,
-            ChargingSessionManager.getAveragePower(),
+            avgPower,
             ChargingSessionManager.peakPower,
             ChargingSessionManager.totalMahCharged
         )
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("ColorBat - Phiên đo sạc")
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setContentTitle(title)
             .setContentText(content)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+
+        if (isLiveAlert) {
+            builder.setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            builder.setPriority(NotificationCompat.PRIORITY_HIGH)
+            builder.setSubText("Cảnh Báo Trực Tiếp")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            }
+        } else {
+            builder.setPriority(NotificationCompat.PRIORITY_LOW)
+        }
+
+        return builder.build()
     }
 
     private fun updateNotification() {
@@ -148,24 +198,38 @@ class ChargingMonitorService : Service() {
         } catch (e: Exception) {}
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Phiên Đo Sạc ColorBat",
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Kênh Cảnh báo trực tiếp (Live Alert / Fluid Cloud)
+            val liveAlertChannel = NotificationChannel(
+                CHANNEL_LIVE_ALERT,
+                "Cảnh Báo Trực Tiếp (Live Alert)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Hiển thị viên thuốc sạc thời gian thực (Aqua Dynamics / Fluid Cloud)"
+                setShowBadge(true)
+            }
+            notificationManager.createNotificationChannel(liveAlertChannel)
+
+            // Kênh Tiêu chuẩn
+            val normalChannel = NotificationChannel(
+                CHANNEL_NORMAL,
+                "Phiên Đo Sạc Tiêu Chuẩn",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Theo dõi công suất và thời gian sạc thời gian thực trong nền"
                 setShowBadge(false)
             }
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(normalChannel)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         stopMonitoring()
+        LiveAlertPillManager.dismiss()
         try {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()

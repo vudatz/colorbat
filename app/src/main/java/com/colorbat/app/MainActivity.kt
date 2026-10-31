@@ -7,8 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -43,7 +45,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvVoltageV: TextView
     private lateinit var tvTemperature: TextView
 
-    // Card 2: Session & Chart (Đã loại bỏ hoàn toàn nút Dừng đo)
+    // Card 2: Biểu đồ sạc (Bấm title để thu gọn/mở rộng, không có nút dừng)
+    private lateinit var layoutChartHeader: View
+    private lateinit var tvChartToggleArrow: TextView
+    private var isChartExpanded = true
     private lateinit var tvSessionBadge: TextView
     private lateinit var tvSessionTimer: TextView
     private lateinit var btnToggleSession: Button
@@ -172,6 +177,8 @@ class MainActivity : AppCompatActivity() {
         tvTemperature = findViewById(R.id.tvTemperature)
 
         // Card 2
+        layoutChartHeader = findViewById(R.id.layoutChartHeader)
+        tvChartToggleArrow = findViewById(R.id.tvChartToggleArrow)
         tvSessionBadge = findViewById(R.id.tvSessionBadge)
         tvSessionTimer = findViewById(R.id.tvSessionTimer)
         btnToggleSession = findViewById(R.id.btnToggleSession)
@@ -225,6 +232,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Bấm vào tiêu đề "Biểu đồ sạc" để thu gọn / mở rộng khung biểu đồ
+        layoutChartHeader.setOnClickListener {
+            isChartExpanded = !isChartExpanded
+            syncSessionUi()
+        }
+
         // 4. Bắt đầu đo / Tạm dừng / Tiếp tục (Loại bỏ hoàn toàn nút Dừng đo)
         btnToggleSession.setOnClickListener {
             if (!ChargingSessionManager.isRunning) {
@@ -267,8 +280,11 @@ class MainActivity : AppCompatActivity() {
         val secs = ChargingSessionManager.sessionSeconds % 60
         tvSessionTimer.text = String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, secs)
 
+        // Cập nhật trạng thái mũi tên và ẩn/hiện biểu đồ theo tương tác người dùng
+        tvChartToggleArrow.text = if (isChartExpanded) "▲" else "▼"
+
         if (ChargingSessionManager.isRunning) {
-            layoutChartContainer.visibility = View.VISIBLE
+            layoutChartContainer.visibility = if (isChartExpanded) View.VISIBLE else View.GONE
 
             if (ChargingSessionManager.isPaused) {
                 // TẠM DỪNG -> Hiện nút Đặt lại và nút Tiếp tục
@@ -289,7 +305,7 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             // Chưa đo hoặc đã đặt lại về ban đầu
-            layoutChartContainer.visibility = View.GONE
+            layoutChartContainer.visibility = if (isChartExpanded && ChargingSessionManager.powerPoints.isNotEmpty()) View.VISIBLE else View.GONE
             tvSessionBadge.text = "SẴN SÀNG"
             tvSessionBadge.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             tvSessionBadge.setBackgroundColor(ContextCompat.getColor(this, R.color.card_stroke))
@@ -432,6 +448,7 @@ class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
         val switchDualCell = dialog.findViewById<SwitchMaterial>(R.id.switchDualCell)
+        val switchLiveAlert = dialog.findViewById<SwitchMaterial>(R.id.switchLiveAlert)
         val switchCycleAlert = dialog.findViewById<SwitchMaterial>(R.id.switchCycleAlert)
         val etCycleLimit = dialog.findViewById<TextInputEditText>(R.id.etCycleLimit)
         val etCustomCapacity = dialog.findViewById<TextInputEditText>(R.id.etCustomCapacity)
@@ -442,11 +459,32 @@ class MainActivity : AppCompatActivity() {
 
         // Load existing values
         switchDualCell.isChecked = prefs.getBoolean("dual_cell_enabled", false)
+        switchLiveAlert.isChecked = prefs.getBoolean("live_alert_enabled", true)
         switchCycleAlert.isChecked = prefs.getBoolean("cycle_alert_enabled", false)
         etCycleLimit.setText(prefs.getInt("cycle_alert_limit", 1000).toString())
         etCustomCapacity.setText(prefs.getInt("custom_capacity", 5520).toString())
         cbBatteryReplaced.isChecked = prefs.getBoolean("battery_replaced", false)
         etReplaceDate.setText(prefs.getString("replace_date", ""))
+
+        // Hỏi cấp quyền vẽ đè nếu bật Cảnh báo trực tiếp
+        switchLiveAlert.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                AlertDialog.Builder(this)
+                    .setTitle("⚡ Cảnh Báo Trực Tiếp")
+                    .setMessage("Để hiển thị viên thuốc sạc (Dynamic Island / Fluid Cloud) nổi trên màn hình mọi ứng dụng, ColorBat cần quyền 'Hiển thị trên các ứng dụng khác'.")
+                    .setPositiveButton("Cấp quyền") { _, _ ->
+                        try {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            )
+                            startActivity(intent)
+                        } catch (e: Exception) {}
+                    }
+                    .setNegativeButton("Để sau", null)
+                    .show()
+            }
+        }
 
         btnCancel.setOnClickListener {
             dialog.dismiss()
@@ -454,6 +492,7 @@ class MainActivity : AppCompatActivity() {
 
         btnSave.setOnClickListener {
             val dualCell = switchDualCell.isChecked
+            val liveAlert = switchLiveAlert.isChecked
             val alertEnabled = switchCycleAlert.isChecked
             val cycleLimit = etCycleLimit.text.toString().toIntOrNull() ?: 1000
             val customCap = etCustomCapacity.text.toString().toIntOrNull() ?: 5520
@@ -462,12 +501,17 @@ class MainActivity : AppCompatActivity() {
 
             prefs.edit()
                 .putBoolean("dual_cell_enabled", dualCell)
+                .putBoolean("live_alert_enabled", liveAlert)
                 .putBoolean("cycle_alert_enabled", alertEnabled)
                 .putInt("cycle_alert_limit", cycleLimit)
                 .putInt("custom_capacity", customCap)
                 .putBoolean("battery_replaced", isReplaced)
                 .putString("replace_date", replaceDate)
                 .apply()
+
+            if (!liveAlert) {
+                LiveAlertPillManager.dismiss()
+            }
 
             // Ghi custom_capacity ra file nội bộ để BatteryReader đọc
             try {

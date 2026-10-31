@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import java.io.File
+import java.util.Locale
 import kotlin.math.abs
 
 data class BatteryInfo(
