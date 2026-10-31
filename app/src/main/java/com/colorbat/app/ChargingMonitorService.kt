@@ -59,7 +59,6 @@ class ChargingMonitorService : Service() {
             }
             ACTION_STOP -> {
                 stopMonitoring()
-                LiveAlertPillManager.dismiss()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
@@ -91,31 +90,6 @@ class ChargingMonitorService : Service() {
                         info.currentMa,
                         info.level
                     )
-
-                    val prefs = applicationContext.getSharedPreferences("colorbat_prefs", Context.MODE_PRIVATE)
-                    val isLiveAlert = prefs.getBoolean("live_alert_enabled", true)
-
-                    val hours = ChargingSessionManager.sessionSeconds / 3600
-                    val mins = (ChargingSessionManager.sessionSeconds % 3600) / 60
-                    val secs = ChargingSessionManager.sessionSeconds % 60
-                    val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
-
-                    if (isLiveAlert) {
-                        LiveAlertPillManager.showOrUpdate(
-                            context = applicationContext,
-                            watts = info.powerWatts,
-                            currentMa = info.currentMa,
-                            voltageMv = info.voltageMv,
-                            batteryLevel = info.level,
-                            timeString = timeStr,
-                            protocol = info.chargeType,
-                            chargedMah = ChargingSessionManager.totalMahCharged,
-                            avgWatts = ChargingSessionManager.getAveragePower(),
-                            peakWatts = ChargingSessionManager.peakPower.toDouble()
-                        )
-                    } else {
-                        LiveAlertPillManager.dismiss()
-                    }
 
                     counter++
                     if (counter % 2 == 0) {
@@ -151,7 +125,7 @@ class ChargingMonitorService : Service() {
         val timeStr = String.format(Locale.US, "%02d:%02d:%02d", hours, mins, secs)
 
         val avgPower = ChargingSessionManager.getAveragePower()
-        val statusText = if (ChargingSessionManager.isPaused) "Tạm dừng" else "Đang đo"
+        val statusText = if (ChargingSessionManager.isPaused) "Tạm dừng" else "Đang sạc"
         val channelId = if (isLiveAlert) CHANNEL_LIVE_ALERT else CHANNEL_NORMAL
 
         val title = if (isLiveAlert) {
@@ -175,15 +149,42 @@ class ChargingMonitorService : Service() {
             .setContentText(content)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
             .setContentIntent(pendingIntent)
 
         if (isLiveAlert) {
-            builder.setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            // Chuẩn Promoted Ongoing ColorOS Fluid Cloud theo FluidCapsule API
+            builder.setCategory(NotificationCompat.CATEGORY_STATUS)
             builder.setPriority(NotificationCompat.PRIORITY_HIGH)
-            builder.setSubText("Cảnh Báo Trực Tiếp")
+            builder.setSubText("Fluid Cloud")
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             }
+
+            // Gắn AOSP Live Notification & ColorOS promoted ongoing tag
+            val extras = android.os.Bundle().apply {
+                putBoolean("android.requestPromotedOngoing", true)
+                putString("android.substName", "ColorBat")
+            }
+            builder.addExtras(extras)
+
+            // Tiến trình phần trăm sạc
+            val currentLvl = if (ChargingSessionManager.currentBatteryLevel > 0) ChargingSessionManager.currentBatteryLevel else 100
+            builder.setProgress(100, currentLvl, false)
+
+            // Nút bấm tương tác nhanh trên Capsule
+            val toggleAction = if (ChargingSessionManager.isPaused) ACTION_RESUME else ACTION_PAUSE
+            val toggleLabel = if (ChargingSessionManager.isPaused) "Tiếp tục" else "Tạm dừng"
+            val toggleIntent = Intent(this, ChargingMonitorService::class.java).apply {
+                action = toggleAction
+            }
+            val togglePending = PendingIntent.getService(
+                this, 101, toggleIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+            builder.addAction(android.R.drawable.ic_media_pause, toggleLabel, togglePending)
         } else {
             builder.setPriority(NotificationCompat.PRIORITY_LOW)
         }
@@ -202,13 +203,15 @@ class ChargingMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            // Kênh Cảnh báo trực tiếp (Live Alert / Fluid Cloud)
+            // Kênh Cảnh báo trực tiếp (ColorOS Fluid Cloud Capsule)
             val liveAlertChannel = NotificationChannel(
                 CHANNEL_LIVE_ALERT,
-                "Cảnh Báo Trực Tiếp (Live Alert)",
+                "Cảnh Báo Trực Tiếp (Fluid Cloud)",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Hiển thị viên thuốc sạc thời gian thực (Aqua Dynamics / Fluid Cloud)"
+                description = "Hiển thị viên thuốc sạc tương tác (ColorOS Fluid Cloud Capsule)"
+                setSound(null, null)
+                enableVibration(false)
                 setShowBadge(true)
             }
             notificationManager.createNotificationChannel(liveAlertChannel)
@@ -229,7 +232,6 @@ class ChargingMonitorService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopMonitoring()
-        LiveAlertPillManager.dismiss()
         try {
             if (wakeLock?.isHeld == true) {
                 wakeLock?.release()

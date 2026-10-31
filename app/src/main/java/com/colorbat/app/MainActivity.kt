@@ -159,9 +159,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupShizuku() {
         try {
             Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
-            if (ShizukuHelper.isRunning() && !ShizukuHelper.hasPermission()) {
-                ShizukuHelper.requestPermission(SHIZUKU_REQUEST_CODE)
-            }
+            // Tuyệt đối không tự động popup xin quyền Shizuku khi mở app
         } catch (e: Exception) {}
     }
 
@@ -353,17 +351,13 @@ class MainActivity : AppCompatActivity() {
         tvBatteryPercent.text = "${info.level}%"
         pbBatteryLevel.progress = info.level
 
-        // Trạng thái cầu nối Shizuku / ADB
+        // Trạng thái kết nối phần cứng / ADB
         if (info.shizukuConnected || info.cycleCount > 0) {
             tvShizukuStatus.text = "✓ Quyền phần cứng: Đã kết nối\n${info.pmicSource}"
             tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.success))
             btnGrantShizuku.visibility = View.GONE
-        } else if (ShizukuHelper.isRunning()) {
-            tvShizukuStatus.text = "Shizuku đang chạy: Cần cấp quyền để đọc chip PMIC"
-            tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.primary))
-            btnGrantShizuku.visibility = View.VISIBLE
         } else {
-            tvShizukuStatus.text = "Chưa cấp quyền (Mở Shizuku hoặc cắm ADB để đọc phần cứng)"
+            tvShizukuStatus.text = "Cắm máy tính có ADB để đồng bộ thông số phần cứng"
             tvShizukuStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
             btnGrantShizuku.visibility = View.GONE
         }
@@ -398,7 +392,7 @@ class MainActivity : AppCompatActivity() {
             tvHealthPercent.text = String.format(Locale.US, "%.1f %%", info.healthPercent)
             tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.success))
         } else {
-            tvHealthPercent.text = "Cần quyền Shizuku"
+            tvHealthPercent.text = "-- %"
             tvHealthPercent.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
 
@@ -407,7 +401,7 @@ class MainActivity : AppCompatActivity() {
             tvCycleCount.text = "${info.cycleCount} lần"
             tvCycleCount.setTextColor(ContextCompat.getColor(this, R.color.primary))
         } else {
-            tvCycleCount.text = "Cần quyền Shizuku"
+            tvCycleCount.text = "-- lần"
             tvCycleCount.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
         }
 
@@ -466,26 +460,6 @@ class MainActivity : AppCompatActivity() {
         cbBatteryReplaced.isChecked = prefs.getBoolean("battery_replaced", false)
         etReplaceDate.setText(prefs.getString("replace_date", ""))
 
-        // Hỏi cấp quyền vẽ đè nếu bật Cảnh báo trực tiếp
-        switchLiveAlert.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                AlertDialog.Builder(this)
-                    .setTitle("⚡ Cảnh Báo Trực Tiếp")
-                    .setMessage("Để hiển thị viên thuốc sạc (Dynamic Island / Fluid Cloud) nổi trên màn hình mọi ứng dụng, ColorBat cần quyền 'Hiển thị trên các ứng dụng khác'.")
-                    .setPositiveButton("Cấp quyền") { _, _ ->
-                        try {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:$packageName")
-                            )
-                            startActivity(intent)
-                        } catch (e: Exception) {}
-                    }
-                    .setNegativeButton("Để sau", null)
-                    .show()
-            }
-        }
-
         btnCancel.setOnClickListener {
             dialog.dismiss()
         }
@@ -508,10 +482,6 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean("battery_replaced", isReplaced)
                 .putString("replace_date", replaceDate)
                 .apply()
-
-            if (!liveAlert) {
-                LiveAlertPillManager.dismiss()
-            }
 
             // Ghi custom_capacity ra file nội bộ để BatteryReader đọc
             try {

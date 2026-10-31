@@ -26,12 +26,12 @@
         android:textSize="15sp"
         android:layout_marginBottom="16dp" />
 
-    <!-- 2. Cảnh báo trực tiếp (Live Alert / Fluid Cloud) -->
+    <!-- 2. Cảnh báo trực tiếp (ColorOS Fluid Cloud) -->
     <com.google.android.material.switchmaterial.SwitchMaterial
         android:id="@+id/switchLiveAlert"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Cảnh báo trực tiếp (Live Alert / Fluid Cloud)"
+        android:text="Cảnh báo trực tiếp (ColorOS Fluid Cloud)"
         android:textColor="@color/text_primary"
         android:textSize="15sp"
         android:layout_marginBottom="16dp" />
